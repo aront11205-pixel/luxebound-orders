@@ -27,7 +27,7 @@ const DEFAULT_UPGRADES = [
 ];
 const DEFAULT_PAYMENTS = ["CC","CC/CASH","CC/QP","CASH","CHECK","QP"];
 const DEFAULT_USERS = [
-  { id:"user1", email:"zupnickyona@gmail.com", password:"8606", role:"admin" }
+  { id:"user1", email:"zupnickyona@gmail.com", password:"8606", role:"admin", displayName:"Yona" }
 ];
 const STATUSES = [
   "New Order","Sent for First Look","Waiting for Changes","Waiting for Pictures",
@@ -55,12 +55,23 @@ const uid      = () => `${Date.now()}_${Math.floor(Math.random()*9999)}`;
 const lsGet    = k  => { try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch{ return null; } };
 const lsSet    = (k,v) => { try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} };
 
-// Auto-format phone as user types → 718-307-3333
+// Auto-format phone as user types → (718) 307-3333
 const fmtPhone = (val) => {
   const d = (val||"").replace(/\D/g,"").slice(0,10);
-  if(d.length<=3) return d;
-  if(d.length<=6) return `${d.slice(0,3)}-${d.slice(3)}`;
-  return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+  if(!d) return "";
+  if(d.length < 4) return `(${d}`;
+  if(d.length < 7) return `(${d.slice(0,3)}) ${d.slice(3)}`;
+  return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+};
+
+// Format ISO timestamp → "Apr 7, 2026 at 12:09 PM"
+const fmtDateTime = (iso) => {
+  if(!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) +
+      " at " + d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+  } catch { return ""; }
 };
 
 // Strip undefined from objects before saving to Firestore
@@ -358,7 +369,10 @@ function OrderCard({ order, onEdit, onDelete }) {
       </div>
 
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{fontSize:11,color:"#94a3b8"}}>📅 {fmtD(order.dateCreated)}{order.dateSentToZno&&` · Zno: ${fmtD(order.dateSentToZno)}`}</div>
+        <div style={{fontSize:11,color:"#94a3b8"}}>
+          📅 {fmtD(order.dateCreated)}{order.dateSentToZno&&` · Zno: ${fmtD(order.dateSentToZno)}`}
+          {order.createdBy&&<span style={{display:"block",marginTop:3}}>👤 Created by <strong>{order.createdBy}</strong>{order.createdAt&&` · ${fmtDateTime(order.createdAt)}`}</span>}
+        </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>onEdit(order)} style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
           <button onClick={()=>onDelete(order)} style={{padding:"6px 16px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete</button>
@@ -480,7 +494,7 @@ function AlbumRow({ albums, entry, onChange, onRemove, canRemove, th }) {
   );
 }
 
-function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, th }) {
+function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, th }) {
   const isEdit=!!order?.id;
   const [customerName,setCustomerName]=useState(order?.customerName||"");
   const [phone,       setPhone]       =useState(order?.phone||"");
@@ -493,7 +507,6 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   const [selUpg,    setSelUpg]    =useState(order?.selectedUpgrades||{});
   const [znoCost,   setZnoCost]   =useState(order?.znoCost??"");
   const [dateSentZno,setDateSentZno]=useState(order?.dateSentToZno||"");
-  const [znoCostSet,setZnoCostSet]=useState(!!order?.dateSentToZno);
   const [discType,  setDiscType]  =useState(order?.discountType||"amount");
   const [discVal,   setDiscVal]   =useState(order?.discountValue||"");
   const [payment,   setPayment]   =useState(order?.paymentMethod||"");
@@ -503,14 +516,20 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   const [err,       setErr]       =useState("");
   const [saving,    setSaving]    =useState(false);
 
+  // Auto-stamp Zno date only when status switches to "Ordered"
+  const handleStatus = (s) => {
+    setStatus(s);
+    if(s === "Ordered" && !dateSentZno) {
+      setDateSentZno(todayStr());
+    }
+  };
+
   const albumsTotal=selAlbums.reduce((s,a)=>s+(Number(a.albumPrice)||0),0);
   const upgTotal   =upgrades.reduce((s,u)=>{const q=Number(selUpg[u.id]||0);return s+(q>0?u.price*q:0);},0);
   const subtotal   =albumsTotal+upgTotal;
   const discAmt    =discVal?(discType==="percent"?subtotal*(Number(discVal)||0)/100:Number(discVal)||0):0;
   const finalTotal =Math.max(0,subtotal-discAmt);
-  const profit     =finalTotal-(Number(znoCost)||0);
-
-  const handleZno=val=>{setZnoCost(val);if(val&&!znoCostSet){setDateSentZno(todayStr());setZnoCostSet(true);}};
+  const profit     =finalTotal-(Number(znoCost)||0);;
 
   const handleSave=async()=>{
     if(!customerName.trim()){setErr("Customer name is required.");return;}
@@ -519,6 +538,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
     try{
       const upgradeNames={};const upgradePrices={};
       upgrades.forEach(u=>{upgradeNames[u.id]=u.name;upgradePrices[u.id]=u.price;});
+      const creatorName = currentUser?.displayName || currentUser?.email || "Unknown";
       const data=clean({
         customerName:customerName.trim(), phone, email, dateCreated,
         selectedAlbums:selAlbums,
@@ -535,6 +555,8 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         paymentMethod:payment,
         paid, status,
         notes:notes||"",
+        createdBy: isEdit ? (order.createdBy||creatorName) : creatorName,
+        createdAt:  isEdit ? (order.createdAt||new Date().toISOString()) : new Date().toISOString(),
       });
       await onSave({id:order?.id,...data});
     }catch(e){
@@ -560,7 +582,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
               <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="Full name" style={inp}/>
             </Field>
             <Field label="Phone Number" required>
-              <input value={phone} onChange={e=>setPhone(fmtPhone(e.target.value))} placeholder="718-307-3333" maxLength={12} style={inp} inputMode="numeric"/>
+              <input value={phone} onChange={e=>setPhone(fmtPhone(e.target.value))} placeholder="(718) 111-1111" maxLength={14} style={inp} inputMode="numeric"/>
             </Field>
             <Field label="Email">
               <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@example.com" style={inp}/>
@@ -616,6 +638,35 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
           </div>
         </div>
 
+        {/* Order Summary */}
+        {(selAlbums.some(a=>a.albumType)||Object.values(selUpg).some(q=>q>0)) && (
+          <div style={{background:"#f8fafc",borderRadius:14,padding:"14px 18px",marginBottom:14,border:"1px solid #e8ecf0"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12}}>🧾 Order Summary</div>
+            {selAlbums.filter(a=>a.albumType).map((a,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:14,color:"#334155",marginBottom:7}}>
+                <span>📚 {a.albumType}</span>
+                <span style={{fontWeight:600,color:BLUE}}>{fmt$(a.albumPrice)}</span>
+              </div>
+            ))}
+            {upgrades.filter(u=>(selUpg[u.id]||0)>0).map(u=>(
+              <div key={u.id} style={{display:"flex",justifyContent:"space-between",fontSize:14,color:"#334155",marginBottom:7}}>
+                <span>✨ {u.name}{Number(selUpg[u.id])>1?` ×${selUpg[u.id]}`:""}</span>
+                <span style={{fontWeight:600,color:AMBER}}>{fmt$(u.price*Number(selUpg[u.id]))}</span>
+              </div>
+            ))}
+            {discAmt>0&&(
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:14,color:RED,marginTop:8,paddingTop:8,borderTop:"1px dashed #e2e8f0"}}>
+                <span>🏷️ Discount ({discType==="percent"?`${discVal}%`:`$${discVal}`})</span>
+                <span style={{fontWeight:600}}>-{fmt$(discAmt)}</span>
+              </div>
+            )}
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:700,color:"#0f172a",marginTop:10,paddingTop:10,borderTop:`2px solid #e2e8f0`}}>
+              <span>{selAlbums.filter(a=>a.albumType).length + Object.values(selUpg).filter(q=>q>0).length} item{(selAlbums.filter(a=>a.albumType).length + Object.values(selUpg).filter(q=>q>0).length)!==1?"s":""}</span>
+              <span style={{color:BLUE}}>{fmt$(finalTotal)}</span>
+            </div>
+          </div>
+        )}
+
         {/* Totals Strip */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:14}}>
           {[
@@ -626,14 +677,14 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
             <div key={item.label} style={{background:item.bg,borderRadius:14,padding:"16px 12px",textAlign:"center",border:`2px solid ${item.color}22`}}>
               <div style={{fontSize:10,color:item.color,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{item.label}</div>
               {item.edit
-                ?<input type="number" value={znoCost} onChange={e=>handleZno(e.target.value)} placeholder="0.00" style={{width:"100%",border:"none",background:"transparent",textAlign:"center",fontSize:18,fontWeight:800,color:AMBER,outline:"none",fontFamily:"system-ui,sans-serif"}}/>
+                ?<input type="number" value={znoCost} onChange={e=>setZnoCost(e.target.value)} placeholder="0.00" style={{width:"100%",border:"none",background:"transparent",textAlign:"center",fontSize:18,fontWeight:800,color:AMBER,outline:"none",fontFamily:"system-ui,sans-serif"}}/>
                 :<div style={{fontSize:18,fontWeight:800,color:item.color}}>{item.val}</div>
               }
             </div>
           ))}
         </div>
 
-        {(znoCost!==""||dateSentZno)&&(
+        {(znoCost!==""||dateSentZno||status==="Ordered"||STATUSES.indexOf(status)>=STATUSES.indexOf("Ordered"))&&(
           <div style={{...sec,marginBottom:14}}>
             <Field label="Date Sent to Zno"><input type="date" value={dateSentZno} onChange={e=>setDateSentZno(e.target.value)} style={inp}/></Field>
           </div>
@@ -659,7 +710,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
           <Field label="Status">
             <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:4}}>
               {STATUSES.map(s=>(
-                <button key={s} onClick={()=>setStatus(s)} style={{padding:"6px 12px",borderRadius:20,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif",background:status===s?BLUE:"#f1f5f9",color:status===s?"white":"#475569",border:`1.5px solid ${status===s?BLUE:"transparent"}`}}>{s}</button>
+                <button key={s} onClick={()=>handleStatus(s)} style={{padding:"6px 12px",borderRadius:20,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif",background:status===s?BLUE:"#f1f5f9",color:status===s?"white":"#475569",border:`1.5px solid ${status===s?BLUE:"transparent"}`}}>{s}</button>
               ))}
             </div>
           </Field>
@@ -791,7 +842,9 @@ function UsersTab({users,onSave,th}){
   );
 }
 
-function AccountTab({currentUser,onChangePw,darkMode,onToggleDark,th}){
+function AccountTab({currentUser,onChangePw,onUpdateDisplayName,darkMode,onToggleDark,th}){
+  const [displayName,setDisplayName]=useState(currentUser?.displayName||"");
+  const [dnSaved, setDnSaved]=useState(false);
   const [cur,setCur]=useState(""); const [newPw,setNew]=useState(""); const [conf,setConf]=useState(""); const [msg,setMsg]=useState(""); const [err,setErr]=useState("");
   const inp=iStyle(th);
   const change=()=>{
@@ -800,12 +853,21 @@ function AccountTab({currentUser,onChangePw,darkMode,onToggleDark,th}){
     if(newPw!==conf){setErr("Passwords don't match.");setMsg("");return;}
     onChangePw(currentUser.email,newPw);setMsg("✓ Password changed!");setErr("");setCur("");setNew("");setConf("");
   };
+  const saveDisplayName=()=>{onUpdateDisplayName(currentUser.email,displayName.trim());setDnSaved(true);setTimeout(()=>setDnSaved(false),2000);};
   return(
     <div>
       <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:4}}>Logged in as</div>
         <div style={{fontSize:14,color:th.subtext}}>{currentUser.email}</div>
         <div style={{fontSize:12,color:BLUE,fontWeight:700,marginTop:3}}>{currentUser.role}</div>
+      </div>
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>Display Name</div>
+        <div style={{display:"flex",gap:8}}>
+          <input value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="e.g. Yona" style={{...inp,flex:1,fontSize:13}}/>
+          <button onClick={saveDisplayName} style={{padding:"9px 16px",borderRadius:8,border:"none",background:dnSaved?GREEN:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",flexShrink:0}}>{dnSaved?"✓ Saved":"Save"}</button>
+        </div>
+        <div style={{fontSize:11,color:th.subtext,marginTop:6}}>This name appears on order cards as "Created by {displayName||"you"}"</div>
       </div>
       <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>Change Password</div>
@@ -829,7 +891,7 @@ function AccountTab({currentUser,onChangePw,darkMode,onToggleDark,th}){
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,onChangePw,onBack,activeTab,setActiveTab,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,onChangePw,onUpdateDisplayName,onBack,activeTab,setActiveTab,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
     {id:"albums",icon:"📚",label:"Albums",desc:"Manage album types & prices"},
@@ -846,7 +908,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
         case "upgrades": return <ListEditor items={upgrades} onSave={onSaveUpgrades} th={th} placeholder="Upgrade name"/>;
         case "payments": return <PaymentsTab paymentMethods={paymentMethods} onSave={onSavePayments} th={th}/>;
         case "users":    return <UsersTab users={users} onSave={onSaveUsers} th={th}/>;
-        case "account":  return <AccountTab currentUser={currentUser} onChangePw={onChangePw} darkMode={darkMode} onToggleDark={onToggleDark} th={th}/>;
+        case "account":  return <AccountTab currentUser={currentUser} onChangePw={onChangePw} onUpdateDisplayName={onUpdateDisplayName} darkMode={darkMode} onToggleDark={onToggleDark} th={th}/>;
         default: return null;
       }
     };
@@ -951,6 +1013,7 @@ export default function App() {
   };
 
   const changePw=async(email,pass)=>await saveUsers(users.map(u=>u.email===email?{...u,password:pass}:u));
+  const updateDisplayName=async(email,name)=>await saveUsers(users.map(u=>u.email===email?{...u,displayName:name}:u));
   const login   =u=>{setCurrentUser(u);lsSet("lb_user",u);};
   const signOut =()=>{setCurrentUser(null);lsSet("lb_user",null);};
   const togDark =()=>{const d=!darkMode;setDarkMode(d);lsSet("lb_dark",d);};
@@ -964,6 +1027,7 @@ export default function App() {
       onSave={saveOrder}
       onDelete={deleteOrder}
       onCancel={()=>{setView("dashboard");setEditingOrder(null);}}
+      currentUser={currentUser}
       th={theme}/>
   );
 
@@ -976,6 +1040,7 @@ export default function App() {
       users={users}           onSaveUsers={saveUsers}
       darkMode={darkMode}     onToggleDark={togDark}
       onChangePw={changePw}
+      onUpdateDisplayName={updateDisplayName}
       onBack={()=>{setView("dashboard");setSettingsTab(null);}}
       activeTab={settingsTab} setActiveTab={setSettingsTab}
       th={theme}/>
