@@ -89,14 +89,16 @@ const clean = (obj) => {
 };
 
 // ── Logo ──────────────────────────────────────────────────
+const LOGO_B64 = "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";
+
 function Logo({ size=38 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" style={{flexShrink:0}}>
-      <circle cx="20" cy="20" r="18" fill={BLUE} stroke={GOLD} strokeWidth="2.5"/>
-      <text x="20" y="14.5" textAnchor="middle" fill="white" fontSize="7" fontFamily="Georgia,serif" fontWeight="700">Luxe</text>
-      <text x="20" y="22"   textAnchor="middle" fill="white" fontSize="7" fontFamily="Georgia,serif" fontWeight="700">Bound</text>
-      <text x="20" y="29"   textAnchor="middle" fill={GOLD}  fontSize="3.8" fontFamily="Georgia,serif" letterSpacing="1">ALBUMS</text>
-    </svg>
+    <img
+      src={`data:image/jpeg;base64,${LOGO_B64}`}
+      width={size} height={size}
+      style={{flexShrink:0, borderRadius:"50%", objectFit:"cover"}}
+      alt="LuxeBound"
+    />
   );
 }
 
@@ -389,11 +391,17 @@ function ExportModal({ orders, onClose, th }) {
   const [step, setStep] =useState(1);
   const [range,setRange]=useState(null);
   const rl=[["7","Last 7 Days","📅"],["30","Last 30 Days","🗓"],["year","This Year","📆"],["all","All Time","🗃"]];
-  const doExport=()=>{
+
+  const getFilteredData = () => {
     const now=new Date(); let data=orders;
     if(range==="7")    data=orders.filter(o=>o.dateCreated>=new Date(now-7*864e5).toISOString().split("T")[0]);
     if(range==="30")   data=orders.filter(o=>o.dateCreated>=new Date(now-30*864e5).toISOString().split("T")[0]);
     if(range==="year") data=orders.filter(o=>(o.dateCreated||"").startsWith(now.getFullYear().toString()));
+    return data;
+  };
+
+  const doExcelExport = () => {
+    const data = getFilteredData();
     const headers=["Customer","Phone","Email","Albums","Date Created","Date Sent to Zno","Subtotal","Discount","Final Total","Zno","Profit","Paid","Payment","Status","Notes"];
     const rows=data.map(o=>{
       const names=(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType).filter(Boolean).join(", ");
@@ -405,31 +413,96 @@ function ExportModal({ orders, onClose, th }) {
     a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
     a.download=`LuxeBound_${todayStr()}.csv`; a.click(); onClose();
   };
+
+  const doPdfExport = () => {
+    const data = getFilteredData();
+    const rangeLabel = rl.find(r=>r[0]===range)?.[1]||"All";
+    const rows = data.map(o=>{
+      const names=(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType).filter(Boolean).join(", ");
+      const ft=Number(o.finalTotal)||Number(o.total)||0;
+      const profit=ft-(Number(o.znoCost)||0);
+      return `<tr>
+        <td>${o.customerName||""}</td>
+        <td>${o.phone||""}</td>
+        <td>${names}</td>
+        <td>${fmtD(o.dateCreated)}</td>
+        <td style="color:#5271FF;font-weight:700">${fmt$(ft)}</td>
+        <td style="color:#f59e0b">${fmt$(o.znoCost)}</td>
+        <td style="color:${profit>=0?"#18B978":"#ef4444"};font-weight:700">${fmt$(profit)}</td>
+        <td style="color:${o.paid?"#18B978":"#ef4444"}">${o.paid?"✓ Paid":"✗ Unpaid"}</td>
+        <td>${o.status||""}</td>
+      </tr>`;
+    }).join("");
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>LuxeBound Export</title>
+    <style>body{font-family:system-ui,sans-serif;padding:24px;color:#0f172a}
+    h1{color:#0f1f4b;font-size:22px;margin-bottom:4px}
+    p{color:#64748b;margin-bottom:20px;font-size:13px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#0f1f4b;color:white;padding:8px 10px;text-align:left;font-weight:600}
+    td{padding:7px 10px;border-bottom:1px solid #e2e8f0}
+    tr:nth-child(even){background:#f8fafc}
+    @media print{body{padding:10px}}</style></head>
+    <body><h1>LuxeBound Albums — Order Report</h1>
+    <p>${rangeLabel} · ${data.length} orders · Exported ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</p>
+    <table><thead><tr><th>Customer</th><th>Phone</th><th>Albums</th><th>Date</th><th>Total</th><th>Zno</th><th>Profit</th><th>Paid</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`;
+    const w=window.open("","_blank");
+    w.document.write(html); w.document.close();
+    setTimeout(()=>w.print(),400);
+    onClose();
+  };
+
   return (
-    <Modal title="📊 Export Orders" onClose={onClose} th={th}>
-      {step===1?(
-        <>
-          <div style={{fontSize:14,color:th.subtext,marginBottom:14}}>Select time range:</div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {rl.map(([v,l,i])=>(
-              <button key={v} onClick={()=>{setRange(v);setStep(2);}} style={{padding:"14px 18px",borderRadius:12,border:`1.5px solid ${th.border}`,background:th.inp,color:th.text,cursor:"pointer",textAlign:"left",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",gap:12}}>
-                <span style={{fontSize:20}}>{i}</span><span>{l}</span>
+    <div
+      onClick={onClose}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:16}}>
+      <div
+        onClick={e=>e.stopPropagation()}
+        style={{background:th.card,borderRadius:20,padding:24,width:"100%",maxWidth:460,boxShadow:"0 20px 60px rgba(0,0,0,.3)",maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:18,color:th.text}}>📊 Export Orders</div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",color:th.subtext,padding:0,lineHeight:1}}>×</button>
+        </div>
+
+        {step===1&&(
+          <>
+            <div style={{fontSize:14,color:th.subtext,marginBottom:14}}>Select time range:</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {rl.map(([v,l,i])=>(
+                <button key={v} onClick={()=>{setRange(v);setStep(2);}} style={{padding:"14px 18px",borderRadius:12,border:`1.5px solid ${th.border}`,background:th.inp,color:th.text,cursor:"pointer",textAlign:"left",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",gap:12}}>
+                  <span style={{fontSize:20}}>{i}</span><span>{l}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {step===2&&(
+          <>
+            <div style={{fontSize:14,color:th.subtext,marginBottom:16}}>
+              Range: <strong style={{color:th.text}}>{rl.find(r=>r[0]===range)?.[1]}</strong> · Choose format:
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <button onClick={doExcelExport} style={{padding:"16px 18px",borderRadius:12,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#15803d",cursor:"pointer",textAlign:"left",fontSize:15,fontWeight:700,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",gap:14}}>
+                <span style={{fontSize:26}}>📗</span>
+                <div>
+                  <div>Excel / CSV</div>
+                  <div style={{fontSize:11,fontWeight:400,marginTop:3,color:"#16a34a"}}>Open in Excel or Google Sheets</div>
+                </div>
               </button>
-            ))}
-          </div>
-        </>
-      ):(
-        <>
-          <div style={{fontSize:14,color:th.subtext,marginBottom:14}}>Range: <strong>{rl.find(r=>r[0]===range)?.[1]}</strong></div>
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <button onClick={doExport} style={{padding:"16px 18px",borderRadius:12,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#15803d",cursor:"pointer",textAlign:"left",fontSize:15,fontWeight:700,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",gap:12}}>
-              <span style={{fontSize:24}}>📗</span><div><div>Excel / CSV</div><div style={{fontSize:11,fontWeight:400,marginTop:2}}>Open in Excel or Google Sheets</div></div>
-            </button>
-            <button onClick={()=>setStep(1)} style={{padding:"10px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>← Back</button>
-          </div>
-        </>
-      )}
-    </Modal>
+              <button onClick={doPdfExport} style={{padding:"16px 18px",borderRadius:12,border:"1.5px solid #dc2626",background:"#fef2f2",color:"#dc2626",cursor:"pointer",textAlign:"left",fontSize:15,fontWeight:700,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",gap:14}}>
+                <span style={{fontSize:26}}>📕</span>
+                <div>
+                  <div>PDF</div>
+                  <div style={{fontSize:11,fontWeight:400,marginTop:3,color:"#dc2626"}}>Opens print dialog — save as PDF</div>
+                </div>
+              </button>
+              <button onClick={()=>setStep(1)} style={{padding:"10px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>← Back</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -463,7 +536,6 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,search,setSearch
         <Pipeline orders={orders} statusFilter={statusFilter} setStatusFilter={setStatusFilter}/>
         <div style={{background:"white",borderRadius:16,padding:"20px 22px",boxShadow:"0 4px 16px rgba(0,0,0,0.06)"}}>
           <Filters search={search} setSearch={setSearch} albumFilter={albumFilter} setAlbumFilter={setAlbumFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} albums={albums} th={th}/>
-          <SummaryBar filtered={filtered}/>
           {filtered.length===0
             ?<div style={{textAlign:"center",padding:"56px 20px",color:"#94a3b8",fontSize:15}}>No orders.{" "}<span style={{color:BLUE,cursor:"pointer",fontWeight:600}} onClick={onNew}>Create first order →</span></div>
             :filtered.map(o=><OrderCard key={o.id} order={o} onEdit={onEdit} onDelete={onDelete}/>)
