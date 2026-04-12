@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { db } from "./firebase";
 import { collection, doc, onSnapshot, setDoc, addDoc, deleteDoc } from "firebase/firestore";
 
@@ -1039,59 +1039,230 @@ function UsersTab({users,onSave,th}){
 }
 
 function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,darkMode,onToggleDark,th}){
-  const [displayName,setDisplayName]=useState(currentUser?.displayName||"");
-  const [dnSaved, setDnSaved]=useState(false);
-  const [cur,setCur]=useState(""); const [newPw,setNew]=useState(""); const [conf,setConf]=useState(""); const [msg,setMsg]=useState(""); const [err,setErr]=useState("");
-  const inp=iStyle(th);
+  const [displayName, setDisplayName] = useState(currentUser?.displayName||"");
+  const [dnSaved,     setDnSaved]     = useState(false);
+  const [cur,  setCur]  = useState("");
+  const [newPw,setNew]  = useState("");
+  const [conf, setConf] = useState("");
+  const [msg,  setMsg]  = useState("");
+  const [err,  setErr]  = useState("");
+  const [cropSrc, setCropSrc] = useState(null);
+  const [zoom,    setZoom]    = useState(1);
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
+  const [saving,  setSaving]  = useState(false);
+  const imgRef   = useRef(null);
+  const dragRef  = useRef(null); // {x,y,ox,oy}
+  const touchRef = useRef(null); // for pinch zoom
+  const inp = iStyle(th);
 
-  const change=()=>{
+  const change = () => {
     if(cur!==currentUser.password){setErr("Current password incorrect.");setMsg("");return;}
     if(newPw.length<4||newPw.length>10){setErr("Must be 4–10 characters.");setMsg("");return;}
     if(newPw!==conf){setErr("Passwords don't match.");setMsg("");return;}
-    onChangePw(currentUser.email,newPw);setMsg("✓ Password changed!");setErr("");setCur("");setNew("");setConf("");
+    onChangePw(currentUser.email,newPw);
+    setMsg("✓ Password changed!");setErr("");setCur("");setNew("");setConf("");
   };
-  const saveDisplayName=()=>{onUpdateDisplayName(currentUser.email,displayName.trim());setDnSaved(true);setTimeout(()=>setDnSaved(false),2000);};
 
+  const saveDisplayName = () => {
+    onUpdateDisplayName(currentUser.email, displayName.trim());
+    setDnSaved(true); setTimeout(()=>setDnSaved(false), 2000);
+  };
+
+  // ── Photo pick ──────────────────────────────────────────
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      onUpdatePhoto(currentUser.email, ev.target.result);
+    e.target.value = "";
+    // First compress with an offscreen canvas before even showing crop UI
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      // Resize to max 600px before loading into crop UI
+      const MAX = 600;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width  * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      setCropSrc(canvas.toDataURL("image/jpeg", 0.9));
+      setZoom(1); setOffsetX(0); setOffsetY(0);
     };
-    reader.readAsDataURL(file);
+    img.src = url;
   };
+
+  // ── Crop & save ─────────────────────────────────────────
+  const handleCropSave = () => {
+    const img = imgRef.current;
+    if(!img || !img.complete) return;
+    setSaving(true);
+    const SIZE = 200;
+    const canvas = document.createElement("canvas");
+    canvas.width = SIZE; canvas.height = SIZE;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.arc(SIZE/2, SIZE/2, SIZE/2, 0, Math.PI*2);
+    ctx.clip();
+    const drawn = SIZE * zoom;
+    const dx = (SIZE - drawn)/2 + offsetX;
+    const dy = (SIZE - drawn)/2 + offsetY;
+    ctx.drawImage(img, dx, dy, drawn, drawn);
+    // Compress hard — target ~20KB
+    const compressed = canvas.toDataURL("image/jpeg", 0.75);
+    onUpdatePhoto(currentUser.email, compressed);
+    setCropSrc(null);
+    setSaving(false);
+  };
+
+  // ── Mouse drag ──────────────────────────────────────────
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    dragRef.current = {x:e.clientX, y:e.clientY, ox:offsetX, oy:offsetY};
+    const onMove = (ev) => {
+      if(!dragRef.current) return;
+      setOffsetX(dragRef.current.ox + (ev.clientX - dragRef.current.x));
+      setOffsetY(dragRef.current.oy + (ev.clientY - dragRef.current.y));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  // ── Touch drag + pinch zoom ─────────────────────────────
+  const onTouchStart = (e) => {
+    if(e.touches.length === 1) {
+      dragRef.current = {x:e.touches[0].clientX, y:e.touches[0].clientY, ox:offsetX, oy:offsetY};
+      touchRef.current = null;
+    } else if(e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchRef.current = {dist: Math.sqrt(dx*dx+dy*dy), zoom};
+    }
+  };
+  const onTouchMove = (e) => {
+    e.preventDefault();
+    if(e.touches.length === 1 && dragRef.current) {
+      setOffsetX(dragRef.current.ox + (e.touches[0].clientX - dragRef.current.x));
+      setOffsetY(dragRef.current.oy + (e.touches[0].clientY - dragRef.current.y));
+    } else if(e.touches.length === 2 && touchRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      const newZoom = Math.min(4, Math.max(0.5, touchRef.current.zoom * (dist / touchRef.current.dist)));
+      setZoom(newZoom);
+    }
+  };
+  const onTouchEnd = () => { dragRef.current = null; touchRef.current = null; };
 
   return(
     <div>
+      {/* ── Crop / Zoom Modal ── */}
+      {cropSrc && (
+        <div
+          onClick={e=>{ if(e.target===e.currentTarget) setCropSrc(null); }}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:600,
+            display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:"white",borderRadius:20,padding:24,width:"100%",maxWidth:360,
+            boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+            <div style={{fontWeight:700,fontSize:17,color:"#0f172a",marginBottom:4,textAlign:"center"}}>
+              📷 Adjust Your Photo
+            </div>
+            <div style={{fontSize:12,color:"#64748b",textAlign:"center",marginBottom:16}}>
+              Drag to move · Pinch or slider to zoom
+            </div>
+
+            {/* Circle crop preview */}
+            <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+              <div
+                style={{width:220,height:220,borderRadius:"50%",overflow:"hidden",
+                  border:"3px solid "+GOLD,position:"relative",
+                  background:"#f1f5f9",userSelect:"none",
+                  cursor:"grab",touchAction:"none"}}
+                onMouseDown={onMouseDown}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}>
+                <img
+                  ref={imgRef}
+                  src={cropSrc}
+                  alt="crop preview"
+                  style={{
+                    position:"absolute",
+                    width:  220*zoom,
+                    height: 220*zoom,
+                    left: (220 - 220*zoom)/2 + offsetX,
+                    top:  (220 - 220*zoom)/2 + offsetY,
+                    pointerEvents:"none",
+                    userSelect:"none",
+                    draggable:false,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Zoom slider */}
+            <div style={{marginBottom:20}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,
+                color:"#64748b",marginBottom:6}}>
+                <span>🔍 Zoom</span>
+                <span style={{fontWeight:700,color:BLUE}}>{Math.round(zoom*100)}%</span>
+              </div>
+              <input type="range" min={0.5} max={4} step={0.05} value={zoom}
+                onChange={e=>setZoom(Number(e.target.value))}
+                style={{width:"100%",accentColor:BLUE,height:6}}/>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#cbd5e1",marginTop:3}}>
+                <span>← Smaller</span><span>Bigger →</span>
+              </div>
+            </div>
+
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setCropSrc(null)} style={{flex:1,padding:"12px",borderRadius:10,
+                border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",
+                cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>
+                Cancel
+              </button>
+              <button onClick={handleCropSave} disabled={saving} style={{flex:2,padding:"12px",
+                borderRadius:10,border:"none",
+                background:saving?"#94a3b8":`linear-gradient(135deg,${GREEN},#34d399)`,
+                color:"white",cursor:saving?"not-allowed":"pointer",
+                fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>
+                {saving?"Saving…":"✅ Save Photo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Profile Card */}
       <div style={{background:th.card,borderRadius:12,padding:20,border:`1px solid ${th.border}`,marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>Profile Photo</div>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
           <Avatar user={currentUser} size={72}/>
           <div>
-            <label style={{
-              display:"inline-block", padding:"9px 18px", borderRadius:8,
-              background:BLUE, color:"white", cursor:"pointer",
-              fontSize:13, fontWeight:600, fontFamily:"system-ui,sans-serif",
-              marginBottom:6,
-            }}>
+            <label style={{display:"inline-block",padding:"9px 18px",borderRadius:8,
+              background:BLUE,color:"white",cursor:"pointer",
+              fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",marginBottom:6}}>
               📷 Upload Photo
-              <input type="file" accept="image/*" onChange={handlePhotoChange}
-                style={{display:"none"}}/>
+              <input type="file" accept="image/*" onChange={handlePhotoChange} style={{display:"none"}}/>
             </label>
-            <div style={{fontSize:11,color:th.subtext,marginTop:4}}>JPG, PNG up to 5MB</div>
+            <div style={{fontSize:11,color:th.subtext,marginTop:4}}>Tap to pick a photo · Then zoom &amp; drag to fit</div>
             {currentUser.photo && (
               <button onClick={()=>onUpdatePhoto(currentUser.email,null)}
-                style={{marginTop:6,background:"none",border:"none",color:RED,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif",padding:0}}>
+                style={{display:"block",marginTop:8,background:"none",border:"none",color:RED,
+                  cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif",padding:0}}>
                 Remove photo
               </button>
             )}
           </div>
         </div>
       </div>
-
-      {/* Account info */}
       <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:4}}>Logged in as</div>
         <div style={{fontSize:14,color:th.subtext}}>{currentUser.email}</div>
