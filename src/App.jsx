@@ -186,6 +186,17 @@ function Avatar({ user, size=36, onClick }) {
     : name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   const colors = ["#5271FF","#18B978","#f59e0b","#8b5cf6","#ec4899","#06b6d4"];
   const color  = colors[(name.charCodeAt(0)||0) % colors.length];
+
+  if (user?.photo) {
+    return (
+      <img src={user.photo} onClick={onClick}
+        style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover",
+          flexShrink:0, cursor:onClick?"pointer":"default",
+          border:"2px solid rgba(255,255,255,0.5)",
+          boxShadow:"0 2px 8px rgba(0,0,0,0.2)" }}
+        alt={name}/>
+    );
+  }
   return (
     <div onClick={onClick} style={{
       width:size, height:size, borderRadius:"50%",
@@ -861,54 +872,106 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
 function ListEditor({ items,onSave,th,placeholder="Name" }) {
   const [list,setList]=useState(items.map(i=>({...i})));
   const [nName,setNN]=useState(""); const [nPrice,setNP]=useState("");
+  const [dragIdx,setDragIdx]=useState(null);
+  const [overIdx,setOverIdx]=useState(null);
   const inp=iStyle(th);
   const update=u=>{setList(u);onSave(u);};
   const add=()=>{if(!nName.trim())return;update([...list,{id:uid(),name:nName.trim(),price:Number(nPrice)||0}]);setNN("");setNP("");};
   const remove=id=>update(list.filter(i=>i.id!==id));
   const change=(id,f,v)=>update(list.map(i=>i.id===id?{...i,[f]:f==="price"?Number(v)||0:v}:i));
-  const moveUp=(idx)=>{
-    if(idx===0) return;
-    const u=[...list]; [u[idx-1],u[idx]]=[u[idx],u[idx-1]]; update(u);
+  const moveUp=(idx)=>{if(idx===0)return;const u=[...list];[u[idx-1],u[idx]]=[u[idx],u[idx-1]];update(u);};
+  const moveDown=(idx)=>{if(idx===list.length-1)return;const u=[...list];[u[idx],u[idx+1]]=[u[idx+1],u[idx]];update(u);};
+
+  const onDragStart=(idx)=>setDragIdx(idx);
+  const onDragOver=(e,idx)=>{e.preventDefault();setOverIdx(idx);};
+  const onDrop=(idx)=>{
+    if(dragIdx===null||dragIdx===idx){setDragIdx(null);setOverIdx(null);return;}
+    const u=[...list];
+    const [moved]=u.splice(dragIdx,1);
+    u.splice(idx,0,moved);
+    update(u);
+    setDragIdx(null);setOverIdx(null);
   };
-  const moveDown=(idx)=>{
-    if(idx===list.length-1) return;
-    const u=[...list]; [u[idx],u[idx+1]]=[u[idx+1],u[idx]]; update(u);
-  };
+  const onDragEnd=()=>{setDragIdx(null);setOverIdx(null);};
+
   return(
     <div>
       {list.map((item,idx)=>(
-        <div key={item.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,background:th.card,borderRadius:10,padding:12,border:`1px solid ${th.border}`}}>
-          {/* Reorder arrows */}
+        <div key={item.id}
+          draggable
+          onDragStart={()=>onDragStart(idx)}
+          onDragOver={e=>onDragOver(e,idx)}
+          onDrop={()=>onDrop(idx)}
+          onDragEnd={onDragEnd}
+          style={{
+            display:"flex",gap:8,alignItems:"center",marginBottom:8,
+            background:th.card,borderRadius:10,padding:12,
+            border:`1.5px solid ${overIdx===idx&&dragIdx!==idx?BLUE:th.border}`,
+            opacity:dragIdx===idx?0.4:1,
+            transition:"border-color .15s, opacity .15s",
+            cursor:"grab",
+          }}>
+          {/* Drag handle */}
+          <div style={{color:"#94a3b8",fontSize:16,cursor:"grab",flexShrink:0,userSelect:"none",lineHeight:1}}>⠿</div>
+          {/* Up/Down arrows */}
           <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
             <button onClick={()=>moveUp(idx)} disabled={idx===0}
-              style={{background:"none",border:"none",cursor:idx===0?"not-allowed":"pointer",color:idx===0?"#cbd5e1":BLUE,fontSize:13,padding:"1px 4px",lineHeight:1}}>▲</button>
+              style={{background:"none",border:"none",cursor:idx===0?"not-allowed":"pointer",color:idx===0?"#cbd5e1":BLUE,fontSize:12,padding:"1px 4px",lineHeight:1}}>▲</button>
             <button onClick={()=>moveDown(idx)} disabled={idx===list.length-1}
-              style={{background:"none",border:"none",cursor:idx===list.length-1?"not-allowed":"pointer",color:idx===list.length-1?"#cbd5e1":BLUE,fontSize:13,padding:"1px 4px",lineHeight:1}}>▼</button>
+              style={{background:"none",border:"none",cursor:idx===list.length-1?"not-allowed":"pointer",color:idx===list.length-1?"#cbd5e1":BLUE,fontSize:12,padding:"1px 4px",lineHeight:1}}>▼</button>
           </div>
-          <input value={item.name} onChange={e=>change(item.id,"name",e.target.value)} style={{...inp,flex:2,padding:"8px 10px",fontSize:13}}/>
-          <input type="number" value={item.price} onChange={e=>change(item.id,"price",e.target.value)} style={{...inp,width:80,padding:"8px 10px",fontSize:13}}/>
-          <button onClick={()=>remove(item.id)} style={{padding:"8px 12px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>✕</button>
+          <input value={item.name} onChange={e=>change(item.id,"name",e.target.value)}
+            style={{...inp,flex:2,padding:"8px 10px",fontSize:13}} onClick={e=>e.stopPropagation()}/>
+          <input type="number" value={item.price} onChange={e=>change(item.id,"price",e.target.value)}
+            style={{...inp,width:80,padding:"8px 10px",fontSize:13}} onClick={e=>e.stopPropagation()}/>
+          <button onClick={()=>remove(item.id)}
+            style={{padding:"8px 12px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>✕</button>
         </div>
       ))}
       <div style={{display:"flex",gap:8,marginTop:16,alignItems:"center"}}>
-        <div style={{width:28,flexShrink:0}}/>
-        <input value={nName} onChange={e=>setNN(e.target.value)} placeholder={placeholder} style={{...inp,flex:2,padding:"9px 12px",fontSize:13}}/>
-        <input type="number" value={nPrice} onChange={e=>setNP(e.target.value)} placeholder="Price" style={{...inp,width:80,padding:"9px 12px",fontSize:13}}/>
-        <button onClick={add} style={{padding:"9px 16px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button>
+        <div style={{width:44,flexShrink:0}}/>
+        <input value={nName} onChange={e=>setNN(e.target.value)} placeholder={placeholder}
+          style={{...inp,flex:2,padding:"9px 12px",fontSize:13}}/>
+        <input type="number" value={nPrice} onChange={e=>setNP(e.target.value)} placeholder="Price"
+          style={{...inp,width:80,padding:"9px 12px",fontSize:13}}/>
+        <button onClick={add}
+          style={{padding:"9px 16px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button>
       </div>
     </div>
   );
 }
 
 function PaymentsTab({paymentMethods,onSave,th}){
-  const [items,setItems]=useState([...paymentMethods]); const [newItem,setNew]=useState("");
+  const [items,setItems]=useState([...paymentMethods]);
+  const [newItem,setNew]=useState("");
+  const [dragIdx,setDragIdx]=useState(null);
+  const [overIdx,setOverIdx]=useState(null);
   const inp=iStyle(th);
   const add=()=>{if(!newItem.trim()||items.includes(newItem.trim()))return;const u=[...items,newItem.trim()];setItems(u);onSave(u);setNew("");};
   const remove=i=>{const u=items.filter((_,idx)=>idx!==i);setItems(u);onSave(u);};
+
+  const onDragStart=i=>setDragIdx(i);
+  const onDragOver=(e,i)=>{e.preventDefault();setOverIdx(i);};
+  const onDrop=(i)=>{
+    if(dragIdx===null||dragIdx===i){setDragIdx(null);setOverIdx(null);return;}
+    const u=[...items];const[moved]=u.splice(dragIdx,1);u.splice(i,0,moved);
+    setItems(u);onSave(u);setDragIdx(null);setOverIdx(null);
+  };
+
   return(
     <div>
       {items.map((p,i)=>(
-        <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,background:th.card,borderRadius:10,padding:"12px 16px",border:`1px solid ${th.border}`}}>
+        <div key={i} draggable
+          onDragStart={()=>onDragStart(i)}
+          onDragOver={e=>onDragOver(e,i)}
+          onDrop={()=>onDrop(i)}
+          onDragEnd={()=>{setDragIdx(null);setOverIdx(null);}}
+          style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,
+            background:th.card,borderRadius:10,padding:"12px 16px",
+            border:`1.5px solid ${overIdx===i&&dragIdx!==i?BLUE:th.border}`,
+            opacity:dragIdx===i?0.4:1, cursor:"grab", transition:"border-color .15s",
+          }}>
+          <span style={{color:"#94a3b8",fontSize:16,userSelect:"none"}}>⠿</span>
           <span style={{flex:1,fontWeight:600,fontSize:14,color:th.text}}>{p}</span>
           <button onClick={()=>remove(i)} style={{padding:"6px 12px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>✕</button>
         </div>
@@ -975,11 +1038,12 @@ function UsersTab({users,onSave,th}){
   );
 }
 
-function AccountTab({currentUser,onChangePw,onUpdateDisplayName,darkMode,onToggleDark,th}){
+function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,darkMode,onToggleDark,th}){
   const [displayName,setDisplayName]=useState(currentUser?.displayName||"");
   const [dnSaved, setDnSaved]=useState(false);
   const [cur,setCur]=useState(""); const [newPw,setNew]=useState(""); const [conf,setConf]=useState(""); const [msg,setMsg]=useState(""); const [err,setErr]=useState("");
   const inp=iStyle(th);
+
   const change=()=>{
     if(cur!==currentUser.password){setErr("Current password incorrect.");setMsg("");return;}
     if(newPw.length<4||newPw.length>10){setErr("Must be 4–10 characters.");setMsg("");return;}
@@ -987,21 +1051,64 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,darkMode,onToggl
     onChangePw(currentUser.email,newPw);setMsg("✓ Password changed!");setErr("");setCur("");setNew("");setConf("");
   };
   const saveDisplayName=()=>{onUpdateDisplayName(currentUser.email,displayName.trim());setDnSaved(true);setTimeout(()=>setDnSaved(false),2000);};
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      onUpdatePhoto(currentUser.email, ev.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return(
     <div>
+      {/* Profile Card */}
+      <div style={{background:th.card,borderRadius:12,padding:20,border:`1px solid ${th.border}`,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>Profile Photo</div>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <Avatar user={currentUser} size={72}/>
+          <div>
+            <label style={{
+              display:"inline-block", padding:"9px 18px", borderRadius:8,
+              background:BLUE, color:"white", cursor:"pointer",
+              fontSize:13, fontWeight:600, fontFamily:"system-ui,sans-serif",
+              marginBottom:6,
+            }}>
+              📷 Upload Photo
+              <input type="file" accept="image/*" onChange={handlePhotoChange}
+                style={{display:"none"}}/>
+            </label>
+            <div style={{fontSize:11,color:th.subtext,marginTop:4}}>JPG, PNG up to 5MB</div>
+            {currentUser.photo && (
+              <button onClick={()=>onUpdatePhoto(currentUser.email,null)}
+                style={{marginTop:6,background:"none",border:"none",color:RED,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif",padding:0}}>
+                Remove photo
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Account info */}
       <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:4}}>Logged in as</div>
         <div style={{fontSize:14,color:th.subtext}}>{currentUser.email}</div>
         <div style={{fontSize:12,color:BLUE,fontWeight:700,marginTop:3}}>{currentUser.role}</div>
       </div>
+
+      {/* Display Name */}
       <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>Display Name</div>
         <div style={{display:"flex",gap:8}}>
           <input value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="e.g. Yona" style={{...inp,flex:1,fontSize:13}}/>
           <button onClick={saveDisplayName} style={{padding:"9px 16px",borderRadius:8,border:"none",background:dnSaved?GREEN:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",flexShrink:0}}>{dnSaved?"✓ Saved":"Save"}</button>
         </div>
-        <div style={{fontSize:11,color:th.subtext,marginTop:6}}>This name appears on order cards as "Created by {displayName||"you"}"</div>
+        <div style={{fontSize:11,color:th.subtext,marginTop:6}}>Shown on order cards as "Created by {displayName||"you"}"</div>
       </div>
+
+      {/* Password */}
       <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>Change Password</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -1013,6 +1120,8 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,darkMode,onToggl
           <button onClick={change} style={{padding:"10px",borderRadius:10,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Change Password</button>
         </div>
       </div>
+
+      {/* Dark Mode */}
       <div style={{background:th.card,borderRadius:12,padding:"14px 16px",border:`1px solid ${th.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontWeight:700,fontSize:14,color:th.text}}>Dark Mode</div>
@@ -1024,7 +1133,7 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,darkMode,onToggl
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,onChangePw,onUpdateDisplayName,onBack,activeTab,setActiveTab,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
     {id:"albums",icon:"📚",label:"Albums",desc:"Manage album types & prices"},
@@ -1041,7 +1150,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
         case "upgrades": return <ListEditor items={upgrades} onSave={onSaveUpgrades} th={th} placeholder="Upgrade name"/>;
         case "payments": return <PaymentsTab paymentMethods={paymentMethods} onSave={onSavePayments} th={th}/>;
         case "users":    return <UsersTab users={users} onSave={onSaveUsers} th={th}/>;
-        case "account":  return <AccountTab currentUser={currentUser} onChangePw={onChangePw} onUpdateDisplayName={onUpdateDisplayName} darkMode={darkMode} onToggleDark={onToggleDark} th={th}/>;
+        case "account":  return <AccountTab currentUser={currentUser} onChangePw={onChangePw} onUpdateDisplayName={onUpdateDisplayName} onUpdatePhoto={onUpdatePhoto} darkMode={darkMode} onToggleDark={onToggleDark} th={th}/>;
         default: return null;
       }
     };
@@ -1147,6 +1256,7 @@ export default function App() {
 
   const changePw=async(email,pass)=>await saveUsers(users.map(u=>u.email===email?{...u,password:pass}:u));
   const updateDisplayName=async(email,name)=>await saveUsers(users.map(u=>u.email===email?{...u,displayName:name}:u));
+  const updatePhoto=async(email,photo)=>await saveUsers(users.map(u=>u.email===email?{...u,photo:photo||null}:u));
   const login   =u=>{setCurrentUser(u);lsSet("lb_user",u);};
   const signOut =()=>{setCurrentUser(null);lsSet("lb_user",null);};
   const togDark =()=>{const d=!darkMode;setDarkMode(d);lsSet("lb_dark",d);};
@@ -1174,6 +1284,7 @@ export default function App() {
       darkMode={darkMode}     onToggleDark={togDark}
       onChangePw={changePw}
       onUpdateDisplayName={updateDisplayName}
+      onUpdatePhoto={updatePhoto}
       onBack={()=>{setView("dashboard");setSettingsTab(null);}}
       activeTab={settingsTab} setActiveTab={setSettingsTab}
       th={theme}/>
