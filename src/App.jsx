@@ -178,6 +178,30 @@ function NavBar({ title, onBack, actions }) {
   );
 }
 
+// ── Avatar ────────────────────────────────────────────────
+function Avatar({ user, size=36, onClick }) {
+  const name = user?.displayName || user?.email || "?";
+  const initials = name.includes("@")
+    ? name[0].toUpperCase()
+    : name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  const colors = ["#5271FF","#18B978","#f59e0b","#8b5cf6","#ec4899","#06b6d4"];
+  const color  = colors[(name.charCodeAt(0)||0) % colors.length];
+  return (
+    <div onClick={onClick} style={{
+      width:size, height:size, borderRadius:"50%",
+      background:color, color:"white",
+      display:"flex", alignItems:"center", justifyContent:"center",
+      fontWeight:700, fontSize:size*0.38, flexShrink:0,
+      cursor:onClick?"pointer":"default",
+      border:"2px solid rgba(255,255,255,0.4)",
+      boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
+      userSelect:"none",
+    }}>
+      {initials}
+    </div>
+  );
+}
+
 function Loader() {
   return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(135deg,${NAVY},#1e3a8a)`,flexDirection:"column",gap:16}}>
@@ -509,7 +533,7 @@ function ExportModal({ orders, onClose, th }) {
 // ══════════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════════
-function Dashboard({ orders,albums,statusFilter,setStatusFilter,search,setSearch,albumFilter,setAlbumFilter,onNew,onEdit,onDelete,onSettings,onSignOut,showExport,setShowExport,th }) {
+function Dashboard({ orders,albums,statusFilter,setStatusFilter,search,setSearch,albumFilter,setAlbumFilter,onNew,onEdit,onDelete,onSettings,onSignOut,showExport,setShowExport,currentUser,th }) {
   const filtered=orders.filter(o=>{
     if(statusFilter&&o.status!==statusFilter) return false;
     if(albumFilter){
@@ -522,15 +546,32 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,search,setSearch
     }
     return true;
   });
+
+  const displayName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "User";
+  const dateStr = new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+
   return (
     <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 40%,#e8f5ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
-      <NavBar title={<div style={{display:"flex",alignItems:"center",gap:14}}><Logo size={42}/><div><div style={{fontWeight:800,fontSize:18,color:"white",fontFamily:"Georgia,serif"}}>LuxeBound Albums</div><div style={{fontSize:11,color:"rgba(255,255,255,0.55)"}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div></div></div>}
-        actions={[
-          <Btn key="new" variant="success" sm onClick={onNew} style={{padding:"8px 20px",fontSize:13}}>+ New Order</Btn>,
-          <Btn key="exp" variant="ghost"   sm onClick={()=>setShowExport(true)} style={{padding:"8px 20px",fontSize:13}}>📊 Export</Btn>,
-          <Btn key="set" variant="ghost"   sm onClick={onSettings} style={{padding:"8px 20px",fontSize:13}}>⚙️ Settings</Btn>,
-          <Btn key="out" variant="ghost"   sm onClick={onSignOut} style={{padding:"8px 20px",fontSize:13}}>Sign Out</Btn>,
-        ]}/>
+      {/* Top Bar */}
+      <div style={{background:NAVY,padding:"0 24px",height:68,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 20px rgba(0,0,0,0.25)"}}>
+        {/* Left: avatar + name + date */}
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <Avatar user={currentUser} size={42} onClick={onSettings}/>
+          <div>
+            <div style={{fontWeight:700,fontSize:16,color:"white",lineHeight:1.2}}>
+              Hi, {displayName} 👋
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:1}}>{dateStr}</div>
+          </div>
+        </div>
+        {/* Right: actions */}
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Btn variant="success" sm onClick={onNew} style={{padding:"8px 18px",fontSize:13}}>+ New Order</Btn>
+          <Btn variant="ghost"   sm onClick={()=>setShowExport(true)} style={{padding:"8px 18px",fontSize:13}}>📊 Export</Btn>
+          <Btn variant="ghost"   sm onClick={onSettings} style={{padding:"8px 18px",fontSize:13}}>⚙️</Btn>
+          <Btn variant="ghost"   sm onClick={onSignOut} style={{padding:"8px 18px",fontSize:13}}>Sign Out</Btn>
+        </div>
+      </div>
       <div style={{padding:"28px 32px",maxWidth:1200,margin:"0 auto"}}>
         <StatCards orders={orders}/>
         <Pipeline orders={orders} statusFilter={statusFilter} setStatusFilter={setStatusFilter}/>
@@ -825,16 +866,32 @@ function ListEditor({ items,onSave,th,placeholder="Name" }) {
   const add=()=>{if(!nName.trim())return;update([...list,{id:uid(),name:nName.trim(),price:Number(nPrice)||0}]);setNN("");setNP("");};
   const remove=id=>update(list.filter(i=>i.id!==id));
   const change=(id,f,v)=>update(list.map(i=>i.id===id?{...i,[f]:f==="price"?Number(v)||0:v}:i));
+  const moveUp=(idx)=>{
+    if(idx===0) return;
+    const u=[...list]; [u[idx-1],u[idx]]=[u[idx],u[idx-1]]; update(u);
+  };
+  const moveDown=(idx)=>{
+    if(idx===list.length-1) return;
+    const u=[...list]; [u[idx],u[idx+1]]=[u[idx+1],u[idx]]; update(u);
+  };
   return(
     <div>
-      {list.map(item=>(
+      {list.map((item,idx)=>(
         <div key={item.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,background:th.card,borderRadius:10,padding:12,border:`1px solid ${th.border}`}}>
+          {/* Reorder arrows */}
+          <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+            <button onClick={()=>moveUp(idx)} disabled={idx===0}
+              style={{background:"none",border:"none",cursor:idx===0?"not-allowed":"pointer",color:idx===0?"#cbd5e1":BLUE,fontSize:13,padding:"1px 4px",lineHeight:1}}>▲</button>
+            <button onClick={()=>moveDown(idx)} disabled={idx===list.length-1}
+              style={{background:"none",border:"none",cursor:idx===list.length-1?"not-allowed":"pointer",color:idx===list.length-1?"#cbd5e1":BLUE,fontSize:13,padding:"1px 4px",lineHeight:1}}>▼</button>
+          </div>
           <input value={item.name} onChange={e=>change(item.id,"name",e.target.value)} style={{...inp,flex:2,padding:"8px 10px",fontSize:13}}/>
           <input type="number" value={item.price} onChange={e=>change(item.id,"price",e.target.value)} style={{...inp,width:80,padding:"8px 10px",fontSize:13}}/>
           <button onClick={()=>remove(item.id)} style={{padding:"8px 12px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>✕</button>
         </div>
       ))}
       <div style={{display:"flex",gap:8,marginTop:16,alignItems:"center"}}>
+        <div style={{width:28,flexShrink:0}}/>
         <input value={nName} onChange={e=>setNN(e.target.value)} placeholder={placeholder} style={{...inp,flex:2,padding:"9px 12px",fontSize:13}}/>
         <input type="number" value={nPrice} onChange={e=>setNP(e.target.value)} placeholder="Price" style={{...inp,width:80,padding:"9px 12px",fontSize:13}}/>
         <button onClick={add} style={{padding:"9px 16px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button>
@@ -884,14 +941,18 @@ function UsersTab({users,onSave,th}){
       {users.map(u=>(
         <div key={u.id} style={{background:th.card,borderRadius:12,padding:16,marginBottom:10,border:`1px solid ${th.border}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:14,color:th.text}}>{u.email}</div>
-              <div style={{fontSize:12,color:th.subtext,marginTop:2}}>Password: <span style={{fontFamily:"monospace"}}>{u.password}</span></div>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:10}}>
-                <span style={{fontSize:12,color:th.subtext}}>Role:</span>
-                <span style={{fontSize:12,fontWeight:700,color:u.role==="admin"?BLUE:th.subtext,minWidth:36}}>{u.role}</span>
-                <Toggle on={u.role==="admin"} set={()=>toggleRole(u.id)}/>
-                <span style={{fontSize:11,color:th.subtext}}>Admin</span>
+            <div style={{display:"flex",alignItems:"flex-start",gap:12,flex:1}}>
+              <Avatar user={u} size={44}/>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:th.text}}>{u.displayName||u.email.split("@")[0]}</div>
+                <div style={{fontSize:12,color:th.subtext,marginTop:1}}>{u.email}</div>
+                <div style={{fontSize:12,color:th.subtext,marginTop:2}}>Password: <span style={{fontFamily:"monospace"}}>{u.password}</span></div>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginTop:10}}>
+                  <span style={{fontSize:12,color:th.subtext}}>Role:</span>
+                  <span style={{fontSize:12,fontWeight:700,color:u.role==="admin"?BLUE:th.subtext,minWidth:36}}>{u.role}</span>
+                  <Toggle on={u.role==="admin"} set={()=>toggleRole(u.id)}/>
+                  <span style={{fontSize:11,color:th.subtext}}>Admin</span>
+                </div>
               </div>
             </div>
             <button onClick={()=>remove(u.id)} style={{padding:"6px 14px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif",marginLeft:8,flexShrink:0}}>Remove</button>
@@ -1130,6 +1191,7 @@ export default function App() {
       onSettings={()=>setView("settings")}
       onSignOut={signOut}
       showExport={showExport} setShowExport={setShowExport}
+      currentUser={currentUser}
       th={theme}/>
   );
 }
