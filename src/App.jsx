@@ -236,7 +236,18 @@ function Pipeline({ orders, statusFilter, setStatusFilter }) {
 // ══════════════════════════════════════════════════════════
 // FLAGS SECTION  (always visible, under pipeline)
 // ══════════════════════════════════════════════════════════
+const FLAG_DEFS = {
+  red:    {color:"#dc2626",bg:"#fef2f2",border:"#fecaca",icon:"🔴"},
+  orange: {color:"#ea580c",bg:"#fff7ed",border:"#fed7aa",icon:"🟠"},
+  yellow: {color:"#ca8a04",bg:"#fefce8",border:"#fef08a",icon:"🟡"},
+};
+
 function getFlag(o) {
+  // Manual flag takes priority
+  if(o.manualFlag && FLAG_DEFS[o.manualFlag]) {
+    return {...FLAG_DEFS[o.manualFlag], label: o.manualFlagNote||"Manually flagged"};
+  }
+  // Auto flags
   if(o.status==="Delivered"&&!o.paid) return {color:"#dc2626",bg:"#fef2f2",border:"#fecaca",icon:"🔴",label:"Unpaid & Delivered"};
   if((o.status==="Ordered"||o.status==="In Production")&&daysSince(o.statusChangedAt||o.dateCreated)>14) return {color:"#ea580c",bg:"#fff7ed",border:"#fed7aa",icon:"🟠",label:"Overdue in production"};
   return {color:"#ca8a04",bg:"#fefce8",border:"#fef08a",icon:"🟡",label:"Sitting too long"};
@@ -277,6 +288,7 @@ function FlagCard({ order, onEdit, onSnooze }) {
 function FlagsSection({ orders, onEdit, onSnooze }) {
   const flagged=orders.filter(o=>{
     if(isSnoozed(o)||o.status==="Order Done") return false;
+    if(o.manualFlag) return true; // manually flagged always shows
     if(o.status==="Delivered"&&!o.paid) return true;
     if((o.status==="Ordered"||o.status==="In Production")&&daysSince(o.statusChangedAt||o.dateCreated)>14) return true;
     if(daysSince(o.statusChangedAt||o.dateCreated)>30) return true;
@@ -332,13 +344,12 @@ function Filters({ filters, setFilters, albums, th, onClear, statusFilter, setSt
 // ══════════════════════════════════════════════════════════
 // ORDER CARD  (V4)
 // ══════════════════════════════════════════════════════════
-function OrderCard({ order, onEdit, onDelete, onPin, onSnooze }) {
+function OrderCard({ order, onEdit, onDelete, onPin }) {
   const finalTotal=(Number(order.finalTotal)||Number(order.total)||0);
   const profit=finalTotal-(Number(order.znoCost)||0);
   const albumList=(order.selectedAlbums||[]).filter(a=>a.albumType);
   const upgList=Object.entries(order.selectedUpgrades||{}).filter(([,q])=>Number(q)>0);
   const hasDiscount=order.discountValue>0;
-  const [showSnooze,setShowSnooze]=useState(false);
 
   return(
     <div style={{background:"white",borderRadius:14,padding:"18px 20px",marginBottom:12,border:`1.5px solid ${order.priority?"#f59e0b44":"#e8ecf0"}`,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
@@ -349,6 +360,7 @@ function OrderCard({ order, onEdit, onDelete, onPin, onSnooze }) {
             <div style={{fontWeight:700,fontSize:17,color:"#0f172a"}}>{order.customerName}</div>
             {order.priority&&<span style={{fontSize:10,fontWeight:700,background:"#fef3c7",color:"#92400e",padding:"2px 8px",borderRadius:20}}>⚡ PRIORITY</span>}
             {order.vip&&<span style={{fontSize:10,fontWeight:700,background:"#fdf4ff",color:"#7e22ce",padding:"2px 8px",borderRadius:20}}>⭐ VIP</span>}
+            {order.manualFlag&&FLAG_DEFS[order.manualFlag]&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,background:FLAG_DEFS[order.manualFlag].bg,color:FLAG_DEFS[order.manualFlag].color,border:`1px solid ${FLAG_DEFS[order.manualFlag].border}`}}>{FLAG_DEFS[order.manualFlag].icon} Flagged</span>}
           </div>
           <div style={{fontSize:12,color:"#64748b"}}>{order.phone}</div>
           {order.deadline&&<div style={{fontSize:11,color:RED,marginTop:3,fontWeight:600}}>🗓 Deadline: {fmtD(order.deadline)}</div>}
@@ -401,24 +413,9 @@ function OrderCard({ order, onEdit, onDelete, onPin, onSnooze }) {
             <div key={i} style={{marginTop:2,color:"#b0bec5"}}>✏️ <strong>{e.who}</strong> · {fmtDateTime(e.when)}{e.summary&&` · ${e.summary}`}</div>
           ))}
         </div>
-        <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap"}}>
-          {showSnooze
-            ? (
-              <>
-                <span style={{fontSize:11,color:"#64748b",fontFamily:"system-ui,sans-serif",alignSelf:"center"}}>Snooze:</span>
-                {[["1d",1],["1w",7],["2w",14],["1m",30]].map(([l,d])=>(
-                  <button key={l} onClick={()=>{onSnooze&&onSnooze(order,d);setShowSnooze(false);}} style={{padding:"5px 10px",borderRadius:20,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>{l}</button>
-                ))}
-                <button onClick={()=>setShowSnooze(false)} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:11,fontFamily:"system-ui,sans-serif"}}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <button onClick={()=>setShowSnooze(true)} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>🔕</button>
-                <button onClick={()=>onEdit(order)} style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
-                <button onClick={()=>onDelete(order)} style={{padding:"6px 16px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete</button>
-              </>
-            )
-          }
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button onClick={()=>onEdit(order)} style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
+          <button onClick={()=>onDelete(order)} style={{padding:"6px 16px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete</button>
         </div>
       </div>
     </div>
@@ -562,7 +559,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
                       <input type="checkbox" checked={selected.includes(o.id)} onChange={()=>toggleSelect(o.id)} style={{marginTop:20,width:18,height:18,accentColor:BLUE,flexShrink:0,cursor:"pointer"}}/>
                     )}
                     <div style={{flex:1}}>
-                      <OrderCard order={o} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onSnooze={onSnooze}/>
+                      <OrderCard order={o} onEdit={onEdit} onDelete={onDelete} onPin={onPin}/>
                     </div>
                   </div>
                 ))
@@ -637,6 +634,8 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   const [priority,setPriority]=useState(order?.priority||false);
   const [vip,setVip]=useState(order?.vip||false);
   const [custNote,setCustNote]=useState(order?.custNote||"");
+  const [manualFlag,setManualFlag]=useState(order?.manualFlag||"");
+  const [manualFlagNote,setManualFlagNote]=useState(order?.manualFlagNote||"");
   const [nameAC,setNameAC]=useState([]); // autocomplete suggestions
 
   const initAlbums=order?.selectedAlbums||(order?.albumType?[{id:uid(),albumType:order.albumType,albumPrice:order.albumPrice||0}]:[{id:uid(),albumType:"",albumPrice:0}]);
@@ -708,6 +707,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
       const data=clean({
         customerName:customerName.trim(),phone,email,dateCreated,
         deadline:deadline||"",priority,vip,custNote:custNote||"",
+        manualFlag:manualFlag||"",manualFlagNote:manualFlagNote||"",
         selectedAlbums:selAlbums,albumType:selAlbums[0]?.albumType||"",albumPrice:selAlbums[0]?.albumPrice||0,
         selectedUpgrades:selUpg,upgradeNames,upgradePrices,
         total:subtotal,discountType:discType,discountValue:Number(discVal)||0,finalTotal,
@@ -886,6 +886,22 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         {/* Notes */}
         <div style={sec}>
           <Field label="Notes"><textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Any additional notes…" rows={3} style={{...inp,resize:"vertical"}}/></Field>
+        </div>
+
+        {/* Manual Flag */}
+        <div style={sec}>
+          <div style={{fontWeight:700,fontSize:15,color:"#0f172a",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #f1f5f9"}}>🚩 Flag This Order</div>
+          <div style={{display:"flex",gap:8,marginBottom:manualFlag?12:0,flexWrap:"wrap"}}>
+            {[["","No Flag","#64748b","#f1f5f9","#e2e8f0"],["red","🔴 Red","#dc2626","#fef2f2","#fecaca"],["orange","🟠 Orange","#ea580c","#fff7ed","#fed7aa"],["yellow","🟡 Yellow","#ca8a04","#fefce8","#fef08a"]].map(([val,label,color,bg,border])=>(
+              <button key={val} onClick={()=>{setManualFlag(val);if(!val)setManualFlagNote("");}}
+                style={{padding:"8px 16px",borderRadius:20,border:`2px solid ${manualFlag===val?color:border}`,background:manualFlag===val?bg:"white",color:manualFlag===val?color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:manualFlag===val?700:500,fontFamily:"system-ui,sans-serif",transition:"all .15s"}}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {manualFlag&&(
+            <input value={manualFlagNote} onChange={e=>setManualFlagNote(e.target.value)} placeholder="Reason for flag (optional)…" style={{...inp,fontSize:13}}/>
+          )}
         </div>
 
         {/* Smart Reminder — only in edit form */}
