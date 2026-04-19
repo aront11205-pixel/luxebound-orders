@@ -9,6 +9,22 @@ const GOLD  = "#C9A84C";
 const AMBER = "#f59e0b";
 const NAVY  = "#0f1f4b";
 
+// V5: Status progress percentages for progress bar
+const STATUS_PROGRESS = {
+  "New Order":10,"Sent for First Look":18,"Waiting for Changes":27,
+  "Waiting for Pictures":36,"Waiting for Approval":45,"Waiting to be Ordered":54,
+  "Ordered":63,"In Production":72,"Shipped":81,"Delivered":90,"Order Done":100,
+};
+// V5: Statuses that trigger the waiting timer
+const WAITING_STATUSES = ["Waiting for Changes","Waiting for Pictures","Waiting for Approval"];
+
+// V5: Default customer sources
+const DEFAULT_SOURCES = [
+  {id:"s1",name:"Family"},{id:"s2",name:"Friend"},{id:"s3",name:"Photographer"},
+  {id:"s4",name:"Instagram"},{id:"s5",name:"Facebook"},{id:"s6",name:"Word of Mouth"},
+  {id:"s7",name:"Returning Customer"},{id:"s8",name:"Other"},
+];
+
 const DEFAULT_ALBUMS = [
   { id:"a1", name:"Wedding Album",    price:350 },
   { id:"a2", name:"Tenoyim Album",    price:325 },
@@ -84,6 +100,24 @@ const clean = (obj) => {
   }
   return obj;
 };
+
+// V5: Compress image to base64 for photo attachments
+const compressImage = (file, maxPx=700, quality=0.72) => new Promise((resolve, reject) => {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    resolve(canvas.toDataURL("image/jpeg", quality));
+  };
+  img.onerror = reject;
+  img.src = url;
+});
 
 const buildDiff = (oldO, newO, who) => {
   const ch=[];
@@ -191,22 +225,29 @@ function LoginScreen({ users, onLogin }) {
 // ══════════════════════════════════════════════════════════
 // STAT CARDS
 // ══════════════════════════════════════════════════════════
-function StatCards({ orders }) {
-  const revenue=orders.reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
+function StatCards({ orders, onFilterUnpaid }) {
+  const revenue=orders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
   const zno=orders.reduce((s,o)=>s+(Number(o.znoCost)||0),0);
   const profit=revenue-zno;
+  const outstanding=orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
+    const total=Number(o.finalTotal)||Number(o.total)||0;
+    const received=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);
+    return s+(total-received);
+  },0);
   return(
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:14,marginBottom:24}}>
       {[
-        {icon:"📦",label:"Total Orders",val:orders.length,bg:"linear-gradient(135deg,#5271FF,#7c93ff)",sh:"rgba(82,113,255,0.3)"},
-        {icon:"💰",label:"Revenue",val:fmt$(revenue),bg:"linear-gradient(135deg,#0ea5e9,#38bdf8)",sh:"rgba(14,165,233,0.3)"},
-        {icon:"📈",label:"Your Profit",val:fmt$(profit),bg:profit>=0?"linear-gradient(135deg,#18B978,#34d399)":"linear-gradient(135deg,#ef4444,#f87171)",sh:profit>=0?"rgba(24,185,120,0.3)":"rgba(239,68,68,0.3)"},
-        {icon:"🏭",label:"Zno Costs",val:fmt$(zno),bg:"linear-gradient(135deg,#f59e0b,#fbbf24)",sh:"rgba(245,158,11,0.3)"},
+        {icon:"📦",label:"Total Orders",val:orders.length,   bg:"linear-gradient(135deg,#5271FF,#7c93ff)",sh:"rgba(82,113,255,0.3)", click:null},
+        {icon:"💰",label:"Revenue",     val:fmt$(revenue),    bg:"linear-gradient(135deg,#0ea5e9,#38bdf8)",sh:"rgba(14,165,233,0.3)",click:null},
+        {icon:"📈",label:"Your Profit", val:fmt$(profit),     bg:profit>=0?"linear-gradient(135deg,#18B978,#34d399)":"linear-gradient(135deg,#ef4444,#f87171)",sh:profit>=0?"rgba(24,185,120,0.3)":"rgba(239,68,68,0.3)",click:null},
+        {icon:"🏭",label:"Zno Costs",   val:fmt$(zno),        bg:"linear-gradient(135deg,#f59e0b,#fbbf24)",sh:"rgba(245,158,11,0.3)",click:null},
+        {icon:"💸",label:"Outstanding", val:fmt$(outstanding),bg:"linear-gradient(135deg,#ef4444,#f87171)",sh:"rgba(239,68,68,0.3)",click:onFilterUnpaid},
       ].map(c=>(
-        <div key={c.label} style={{background:c.bg,borderRadius:16,padding:"20px 22px",boxShadow:`0 8px 24px ${c.sh}`}}>
-          <div style={{fontSize:28,marginBottom:8}}>{c.icon}</div>
-          <div style={{fontSize:26,fontWeight:800,color:"white",letterSpacing:"-0.5px"}}>{c.val}</div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,0.75)",marginTop:6,fontWeight:600}}>{c.label}</div>
+        <div key={c.label} onClick={c.click||undefined} style={{background:c.bg,borderRadius:16,padding:"18px 14px",boxShadow:`0 8px 24px ${c.sh}`,cursor:c.click?"pointer":"default"}}>
+          <div style={{fontSize:24,marginBottom:6}}>{c.icon}</div>
+          <div style={{fontSize:20,fontWeight:800,color:"white",letterSpacing:"-0.5px"}}>{c.val}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",marginTop:5,fontWeight:600}}>{c.label}</div>
+          {c.click&&<div style={{fontSize:9,color:"rgba(255,255,255,0.6)",marginTop:2}}>tap to filter</div>}
         </div>
       ))}
     </div>
@@ -344,83 +385,157 @@ function Filters({ filters, setFilters, albums, th, onClear, statusFilter, setSt
 // ══════════════════════════════════════════════════════════
 // ORDER CARD  (V4)
 // ══════════════════════════════════════════════════════════
-function OrderCard({ order, onEdit, onDelete, onPin }) {
+// ══════════════════════════════════════════════════════════
+// ORDER CARD  (V5: progress bar, color border, waiting timer, quick status, photos, payment history)
+// ══════════════════════════════════════════════════════════
+function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus }) {
   const finalTotal=(Number(order.finalTotal)||Number(order.total)||0);
+  const received=(order.payments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
   const profit=finalTotal-(Number(order.znoCost)||0);
   const albumList=(order.selectedAlbums||[]).filter(a=>a.albumType);
   const upgList=Object.entries(order.selectedUpgrades||{}).filter(([,q])=>Number(q)>0);
   const hasDiscount=order.discountValue>0;
+  const progress=STATUS_PROGRESS[order.status]||10;
+  const borderColor=STATUS_COLORS[order.status]?.border||"#e2e8f0";
+  const waitingDays=WAITING_STATUSES.includes(order.status)?Math.floor(daysSince(order.statusChangedAt||order.dateCreated)):0;
+  const [lightbox,setLightbox]=useState(null);
 
   return(
-    <div style={{background:"white",borderRadius:14,padding:"18px 20px",marginBottom:12,border:`1.5px solid ${order.priority?"#f59e0b44":"#e8ecf0"}`,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
-      {/* Header */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-        <div style={{flex:1}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2,flexWrap:"wrap"}}>
-            <div style={{fontWeight:700,fontSize:17,color:"#0f172a"}}>{order.customerName}</div>
-            {order.priority&&<span style={{fontSize:10,fontWeight:700,background:"#fef3c7",color:"#92400e",padding:"2px 8px",borderRadius:20}}>⚡ PRIORITY</span>}
-            {order.vip&&<span style={{fontSize:10,fontWeight:700,background:"#fdf4ff",color:"#7e22ce",padding:"2px 8px",borderRadius:20}}>⭐ VIP</span>}
-            {order.manualFlag&&FLAG_DEFS[order.manualFlag]&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,background:FLAG_DEFS[order.manualFlag].bg,color:FLAG_DEFS[order.manualFlag].color,border:`1px solid ${FLAG_DEFS[order.manualFlag].border}`}}>{FLAG_DEFS[order.manualFlag].icon} Flagged</span>}
-          </div>
-          <div style={{fontSize:12,color:"#64748b"}}>{order.phone}</div>
-          {order.deadline&&<div style={{fontSize:11,color:RED,marginTop:3,fontWeight:600}}>🗓 Deadline: {fmtD(order.deadline)}</div>}
-          {isSnoozed(order)&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>🔕 Snoozed until {fmtD(order.snoozedUntil?.split("T")[0])}</div>}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <button onClick={()=>onPin&&onPin(order)} title={order.pinned?"Unpin":"Pin to top"} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,padding:"2px 4px",lineHeight:1,color:order.pinned?GOLD:"#d1d5db",filter:order.pinned?"none":"grayscale(1)",opacity:order.pinned?1:0.5}}>📌</button>
-          <Badge status={order.status}/>
-        </div>
+    <div style={{background:"white",borderRadius:14,marginBottom:12,border:`1.5px solid ${order.priority?"#f59e0b44":"#e8ecf0"}`,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",overflow:"hidden",borderLeft:`4px solid ${borderColor}`}}>
+
+      {/* Progress Bar */}
+      <div style={{height:4,background:"#f1f5f9"}}>
+        <div style={{height:4,width:`${progress}%`,background:progress===100?GREEN:BLUE,transition:"width .4s"}}/>
       </div>
 
-      {/* Order Details */}
-      <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",marginBottom:12,border:"1px solid #f1f5f9"}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>📋 Order Details</div>
-        {albumList.length>0
-          ? albumList.map((a,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"#334155",marginBottom:5}}><span>📚 {a.albumType}</span><span style={{fontWeight:600,color:BLUE}}>{fmt$(a.albumPrice)}</span></div>)
-          : order.albumType
-            ? <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"#334155",marginBottom:5}}><span>📚 {order.albumType}</span><span style={{fontWeight:600,color:BLUE}}>{fmt$(order.albumPrice)}</span></div>
-            : null
-        }
-        {upgList.map(([id,qty])=>{
-          const name=(order.upgradeNames||{})[id]||id;
-          const price=(order.upgradePrices||{})[id]||0;
-          return <div key={id} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"#334155",marginBottom:5}}><span>✨ {name}{Number(qty)>1?` ×${qty}`:""}</span><span style={{fontWeight:600,color:AMBER}}>{fmt$(price*Number(qty))}</span></div>;
-        })}
-        {hasDiscount&&(
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:RED,marginTop:6,paddingTop:6,borderTop:"1px dashed #e2e8f0"}}>
-            <span>🏷️ Discount ({order.discountType==="percent"?`${order.discountValue}%`:`$${order.discountValue}`})</span>
-            <span style={{fontWeight:600}}>-{fmt$((Number(order.total)||0)-finalTotal)}</span>
+      <div style={{padding:"14px 16px"}}>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap"}}>
+              <div style={{fontWeight:700,fontSize:16,color:"#0f172a"}}>{order.customerName}</div>
+              {order.invoiceNum&&<span style={{fontSize:10,color:"#94a3b8",fontFamily:"monospace",background:"#f1f5f9",padding:"1px 6px",borderRadius:4}}>{order.invoiceNum}</span>}
+              {order.priority&&<span style={{fontSize:10,fontWeight:700,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:20}}>⚡ PRIORITY</span>}
+              {order.vip&&<span style={{fontSize:10,fontWeight:700,background:"#fdf4ff",color:"#7e22ce",padding:"2px 7px",borderRadius:20}}>⭐ VIP</span>}
+              {order.refunded&&<span style={{fontSize:10,fontWeight:700,background:"#fef2f2",color:RED,padding:"2px 7px",borderRadius:20}}>↩️ Refunded</span>}
+              {order.manualFlag&&FLAG_DEFS[order.manualFlag]&&<span style={{fontSize:11}}>{FLAG_DEFS[order.manualFlag].icon}</span>}
+            </div>
+            <div style={{fontSize:12,color:"#64748b"}}>{order.phone}</div>
+            {order.deadline&&<div style={{fontSize:11,color:RED,marginTop:2,fontWeight:600}}>🗓 Deadline: {fmtD(order.deadline)}</div>}
+            {order.paymentDueDate&&!order.paid&&(
+              <div style={{fontSize:11,color:new Date(order.paymentDueDate)<new Date()?RED:AMBER,marginTop:2,fontWeight:600}}>
+                💳 Payment due: {fmtD(order.paymentDueDate)}
+              </div>
+            )}
+            {isSnoozed(order)&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>🔕 Snoozed until {fmtD(order.snoozedUntil?.split("T")[0])}</div>}
+            {waitingDays>0&&(
+              <div style={{fontSize:11,marginTop:2,fontWeight:600,color:waitingDays>=7?RED:waitingDays>=3?AMBER:"#64748b"}}>
+                ⏳ Waiting {waitingDays} day{waitingDays!==1?"s":""}
+              </div>
+            )}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <button onClick={()=>onPin&&onPin(order)} title={order.pinned?"Unpin":"Pin"} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,padding:"2px",lineHeight:1,color:order.pinned?GOLD:"#d1d5db",opacity:order.pinned?1:0.5}}>📌</button>
+            <Badge status={order.status}/>
+          </div>
+        </div>
+
+        {/* Quick status dropdown */}
+        <div style={{marginBottom:8}}>
+          <select value={order.status} onChange={e=>onQuickStatus&&onQuickStatus(order,e.target.value)}
+            style={{fontSize:11,padding:"5px 10px",borderRadius:20,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontFamily:"system-ui,sans-serif",outline:"none"}}>
+            {STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        {/* Order Details */}
+        <div style={{background:"#f8fafc",borderRadius:10,padding:"10px 12px",marginBottom:10,border:"1px solid #f1f5f9"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:6}}>📋 Order Details</div>
+          {albumList.length>0
+            ? albumList.map((a,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#334155",marginBottom:4}}><span>📚 {a.albumType}</span><span style={{fontWeight:600,color:BLUE}}>{fmt$(a.albumPrice)}</span></div>)
+            : order.albumType
+              ? <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#334155",marginBottom:4}}><span>📚 {order.albumType}</span><span style={{fontWeight:600,color:BLUE}}>{fmt$(order.albumPrice)}</span></div>
+              : null
+          }
+          {upgList.map(([id,qty])=>{
+            const name=(order.upgradeNames||{})[id]||id;
+            const price=(order.upgradePrices||{})[id]||0;
+            return <div key={id} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#334155",marginBottom:4}}><span>✨ {name}{Number(qty)>1?` ×${qty}`:""}</span><span style={{fontWeight:600,color:AMBER}}>{fmt$(price*Number(qty))}</span></div>;
+          })}
+          {hasDiscount&&(
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:RED,marginTop:4,paddingTop:4,borderTop:"1px dashed #e2e8f0"}}>
+              <span>🏷️ Discount ({order.discountType==="percent"?`${order.discountValue}%`:`$${order.discountValue}`})</span>
+              <span style={{fontWeight:600}}>-{fmt$((Number(order.total)||0)-finalTotal)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Financials */}
+        <div style={{display:"flex",gap:14,marginBottom:10,padding:"8px 12px",background:"#f8fafc",borderRadius:10,flexWrap:"wrap"}}>
+          {[
+            {label:"Total", val:fmt$(finalTotal),color:BLUE},
+            {label:"Zno",   val:fmt$(order.znoCost),color:AMBER},
+            {label:"Profit",val:fmt$(profit),color:profit>=0?GREEN:RED},
+            {label:"Paid",  val:order.paid?"✓ Yes":"✗ No",color:order.paid?GREEN:RED},
+          ].map(({label,val,color})=>(
+            <div key={label} style={{textAlign:"center"}}>
+              <div style={{fontSize:14,fontWeight:800,color}}>{val}</div>
+              <div style={{fontSize:10,color:"#94a3b8",marginTop:1,fontWeight:600}}>{label}</div>
+            </div>
+          ))}
+          {received>0&&received<finalTotal&&(
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:14,fontWeight:800,color:AMBER}}>{fmt$(finalTotal-received)}</div>
+              <div style={{fontSize:10,color:"#94a3b8",marginTop:1,fontWeight:600}}>Balance</div>
+            </div>
+          )}
+        </div>
+
+        {/* Payment history mini log */}
+        {(order.payments||[]).length>0&&(
+          <div style={{marginBottom:8,fontSize:11,color:"#64748b"}}>
+            💳 {(order.payments||[]).map((p,i)=>(
+              <span key={i}>{fmtD(p.date)} — {fmt$(p.amount)} {p.method}{i<order.payments.length-1?" · ":""}</span>
+            ))}
           </div>
         )}
-      </div>
 
-      {/* Financials */}
-      <div style={{display:"flex",gap:16,marginBottom:12,padding:"10px 14px",background:"#f8fafc",borderRadius:10,flexWrap:"wrap"}}>
-        {[{label:"Total",val:fmt$(finalTotal),color:BLUE},{label:"Zno",val:fmt$(order.znoCost),color:AMBER},{label:"Profit",val:fmt$(profit),color:profit>=0?GREEN:RED},{label:"Paid",val:order.paid?"✓ Yes":"✗ No",color:order.paid?GREEN:RED}].map(({label,val,color})=>(
-          <div key={label} style={{textAlign:"center"}}>
-            <div style={{fontSize:15,fontWeight:800,color}}>{val}</div>
-            <div style={{fontSize:10,color:"#94a3b8",marginTop:2,fontWeight:600}}>{label}</div>
+        {/* Photo thumbnails */}
+        {(order.photos||[]).length>0&&(
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            {(order.photos||[]).map((ph,i)=>(
+              <img key={i} src={ph} alt={`photo ${i+1}`} onClick={()=>setLightbox(ph)}
+                style={{width:52,height:52,borderRadius:8,objectFit:"cover",cursor:"pointer",border:"2px solid #e2e8f0"}}/>
+            ))}
           </div>
-        ))}
+        )}
+
+        {/* Footer */}
+        <div style={{borderTop:"1px solid #f1f5f9",paddingTop:8}}>
+          <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}>
+            📅 {fmtD(order.dateCreated)}{order.dateSentToZno&&` · Zno: ${fmtD(order.dateSentToZno)}`}
+            {order.createdBy&&<div style={{marginTop:2}}>👤 Created by <strong>{order.createdBy}</strong>{order.createdAt&&` · ${fmtDateTime(order.createdAt)}`}</div>}
+            {(order.editHistory||[]).map((e,i)=>(
+              <div key={i} style={{marginTop:2,color:"#b0bec5"}}>✏️ <strong>{e.who}</strong> · {fmtDateTime(e.when)}{e.summary&&` · ${e.summary}`}</div>
+            ))}
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button onClick={()=>onEdit(order)} style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
+            <button onClick={()=>onDelete(order)} style={{padding:"6px 16px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete</button>
+          </div>
+        </div>
       </div>
 
-      {/* Footer */}
-      <div style={{borderTop:"1px solid #f1f5f9",paddingTop:10}}>
-        <div style={{fontSize:11,color:"#94a3b8",marginBottom:8}}>
-          📅 {fmtD(order.dateCreated)}{order.dateSentToZno&&` · Zno: ${fmtD(order.dateSentToZno)}`}
-          {order.createdBy&&<div style={{marginTop:2}}>👤 Created by <strong>{order.createdBy}</strong>{order.createdAt&&` · ${fmtDateTime(order.createdAt)}`}</div>}
-          {(order.editHistory||[]).map((e,i)=>(
-            <div key={i} style={{marginTop:2,color:"#b0bec5"}}>✏️ <strong>{e.who}</strong> · {fmtDateTime(e.when)}{e.summary&&` · ${e.summary}`}</div>
-          ))}
+      {/* Photo lightbox */}
+      {lightbox&&(
+        <div onClick={()=>setLightbox(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out"}}>
+          <img src={lightbox} alt="full" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:12,boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}/>
         </div>
-        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
-          <button onClick={()=>onEdit(order)} style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
-          <button onClick={()=>onDelete(order)} style={{padding:"6px 16px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete</button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════════════════════
 // EXPORT MODAL
@@ -463,7 +578,7 @@ function ExportModal({ orders, onClose, th }) {
 // ══════════════════════════════════════════════════════════
 // DASHBOARD  (V4)
 // ══════════════════════════════════════════════════════════
-function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,th }) {
+function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,onQuickStatus,th }) {
   const [filters,setFilters]=useState({search:"",album:"",paid:"",vip:false,priority:false,pinned:false});
   const [ordersOpen,setOrdersOpen]=useState(false);
   const [selectMode,setSelectMode]=useState(false);
@@ -473,7 +588,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
   const filtered=orders.filter(o=>{
     if(statusFilter&&o.status!==statusFilter) return false;
     if(filters.album){const names=(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType);if(!names.includes(filters.album))return false;}
-    if(filters.search){const q=filters.search.toLowerCase();if(!((o.customerName||"").toLowerCase().includes(q)||(o.phone||"").includes(q)))return false;}
+    if(filters.search){const q=filters.search.toLowerCase();const inN=(o.customerName||"").toLowerCase().includes(q);const inP=(o.phone||"").includes(q);const inI=(o.invoiceNum||"").toLowerCase().includes(q);if(!inN&&!inP&&!inI)return false;}
     if(filters.paid==="paid"&&!o.paid) return false;
     if(filters.paid==="unpaid"&&o.paid) return false;
     if(filters.vip&&!o.vip) return false;
@@ -490,6 +605,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
   });
 
   const clearFilters=()=>{setFilters({search:"",album:"",paid:"",vip:false,priority:false,pinned:false});setStatusFilter(null);};
+  const filterUnpaid=()=>{setFilters(f=>({...f,paid:"unpaid"}));setOrdersOpen(true);};
   const toggleSelect=id=>setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
   const applyBulk=()=>{if(bulkStatus&&selected.length){onBulkStatus(selected,bulkStatus);setSelected([]);setSelectMode(false);setBulkStatus("");}};
 
@@ -516,7 +632,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
       </div>
 
       <div style={{padding:"28px 32px",maxWidth:1200,margin:"0 auto"}}>
-        <StatCards orders={orders}/>
+        <StatCards orders={orders} onFilterUnpaid={filterUnpaid}/>
         <Pipeline orders={orders} statusFilter={statusFilter} setStatusFilter={setStatusFilter}/>
         <FlagsSection orders={orders} onEdit={onEdit} onSnooze={onSnooze}/>
 
@@ -559,7 +675,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
                       <input type="checkbox" checked={selected.includes(o.id)} onChange={()=>toggleSelect(o.id)} style={{marginTop:20,width:18,height:18,accentColor:BLUE,flexShrink:0,cursor:"pointer"}}/>
                     )}
                     <div style={{flex:1}}>
-                      <OrderCard order={o} onEdit={onEdit} onDelete={onDelete} onPin={onPin}/>
+                      <OrderCard order={o} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onQuickStatus={onQuickStatus}/>
                     </div>
                   </div>
                 ))
@@ -572,6 +688,66 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
     </div>
   );
 }
+
+// ══════════════════════════════════════════════════════════
+// INVOICE GENERATOR  (V5)
+// ══════════════════════════════════════════════════════════
+function generateInvoice(order) {
+  const ft=Number(order.finalTotal)||Number(order.total)||0;
+  const received=(order.payments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
+  const balance=ft-received;
+  const albumLines=(order.selectedAlbums||[{albumType:order.albumType,albumPrice:order.albumPrice}])
+    .filter(a=>a.albumType)
+    .map(a=>`<tr><td>${a.albumType}</td><td style="text-align:right">${fmt$(a.albumPrice)}</td></tr>`).join("");
+  const upgLines=Object.entries(order.selectedUpgrades||{}).filter(([,q])=>Number(q)>0)
+    .map(([id,qty])=>{
+      const n=(order.upgradeNames||{})[id]||id;
+      const p=(order.upgradePrices||{})[id]||0;
+      return `<tr><td>✨ ${n}${Number(qty)>1?` ×${qty}`:""}</td><td style="text-align:right">${fmt$(p*Number(qty))}</td></tr>`;
+    }).join("");
+  const payLines=(order.payments||[]).map(p=>
+    `<tr><td>${fmtD(p.date)} — ${p.method||""}</td><td style="text-align:right;color:#18B978">-${fmt$(p.amount)}</td></tr>`
+  ).join("");
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invoice ${order.invoiceNum||""}</title>
+<style>
+  body{font-family:system-ui,sans-serif;padding:40px;color:#0f172a;max-width:600px;margin:0 auto}
+  .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:40px;padding-bottom:20px;border-bottom:3px solid #0f1f4b}
+  .hdr h1{color:#0f1f4b;font-size:24px;margin:0;font-family:Georgia,serif}
+  .hdr p{color:#64748b;margin:4px 0 0;font-size:12px;letter-spacing:2px;text-transform:uppercase}
+  .inv{text-align:right;font-size:13px;color:#64748b}
+  .inv strong{font-size:22px;color:#0f1f4b;display:block;margin-bottom:4px}
+  .cust{background:#f8fafc;border-radius:12px;padding:20px;margin-bottom:30px}
+  .cust h3{margin:0 0 8px;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+  .cust p{margin:2px 0;font-size:15px}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px}
+  th{background:#0f1f4b;color:white;padding:10px 14px;text-align:left;font-size:12px}
+  td{padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:14px}
+  .tot td{font-weight:700;font-size:16px;color:#0f1f4b;border-top:2px solid #0f1f4b;border-bottom:none}
+  .bal td{font-weight:800;font-size:18px;color:${balance>0?"#ef4444":"#18B978"};background:${balance>0?"#fef2f2":"#f0fdf4"};border-radius:8px}
+  .foot{margin-top:40px;text-align:center;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0;padding-top:20px}
+  @media print{body{padding:20px}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>LuxeBound Albums</h1><p>The Art of Album Making</p></div>
+  <div class="inv"><strong>INVOICE</strong>${order.invoiceNum?`<span>${order.invoiceNum}</span>`:""}<br/>Date: ${fmtD(order.dateCreated)}</div>
+</div>
+<div class="cust"><h3>Bill To</h3><p><strong>${order.customerName||""}</strong></p><p>${order.phone||""}</p>${order.email?`<p>${order.email}</p>`:""}</div>
+<table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+<tbody>
+${albumLines}${upgLines}
+${order.discountValue>0?`<tr><td>🏷️ Discount</td><td style="text-align:right;color:#ef4444">-${fmt$(Math.abs((Number(order.total)||0)-(Number(order.finalTotal)||0)))}</td></tr>`:""}
+<tr class="tot"><td>Total</td><td style="text-align:right">${fmt$(ft)}</td></tr>
+${payLines}
+<tr class="bal"><td>Balance Due</td><td style="text-align:right">${fmt$(balance)}</td></tr>
+</tbody></table>
+<div class="foot">Thank you for choosing LuxeBound Albums · The Art of Album Making</div>
+</body></html>`;
+  const w=window.open("","_blank");
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),500);
+}
+
 
 // ══════════════════════════════════════════════════════════
 // ORDER FORM  (V4)
@@ -624,7 +800,7 @@ function SmartReminder({ order, th }) {
   );
 }
 
-function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, customers, onSaveCustomer, th }) {
+function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, customers, onSaveCustomer, sources, th }) {
   const isEdit=!!order?.id;
   const [customerName,setCustomerName]=useState(order?.customerName||"");
   const [phone,setPhone]=useState(order?.phone||"");
@@ -636,6 +812,13 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   const [custNote,setCustNote]=useState(order?.custNote||"");
   const [manualFlag,setManualFlag]=useState(order?.manualFlag||"");
   const [manualFlagNote,setManualFlagNote]=useState(order?.manualFlagNote||"");
+  // V5 new fields
+  const [photos,setPhotos]=useState(order?.photos||[]);
+  const [photoUploading,setPhotoUploading]=useState(false);
+  const [payments,setPayments]=useState(order?.payments||[]);
+  const [paymentDueDate,setPaymentDueDate]=useState(order?.paymentDueDate||"");
+  const [refunded,setRefunded]=useState(order?.refunded||false);
+  const [refundAmount,setRefundAmount]=useState(order?.refundAmount||"");
   const [nameAC,setNameAC]=useState([]); // autocomplete suggestions
 
   const initAlbums=order?.selectedAlbums||(order?.albumType?[{id:uid(),albumType:order.albumType,albumPrice:order.albumPrice||0}]:[{id:uid(),albumType:"",albumPrice:0}]);
@@ -685,6 +868,31 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
     if(s==="Ordered"&&!dateSentZno) setDateSentZno(todayStr());
   };
 
+  // V5: Auto-check paid when fully paid via deposits
+  const totalReceived=payments.reduce((s,p)=>s+Number(p.amount||0),0);
+  React.useEffect(()=>{
+    if(totalReceived>0&&totalReceived>=finalTotal&&finalTotal>0) setPaid(true);
+  // eslint-disable-next-line
+  },[totalReceived]);
+
+  // V5: Photo upload
+  const handlePhotoUpload=async(e)=>{
+    const files=Array.from(e.target.files||[]);
+    if(!files.length) return;
+    if(photos.length+files.length>4){setErr("Maximum 4 photos per order.");return;}
+    setPhotoUploading(true); setErr("");
+    try{
+      const compressed=await Promise.all(files.slice(0,4-photos.length).map(f=>compressImage(f,800,0.7)));
+      setPhotos(prev=>[...prev,...compressed]);
+    }catch{setErr("Failed to upload photo.");}
+    setPhotoUploading(false); e.target.value="";
+  };
+
+  // V5: Payment entry helpers
+  const addPayment=()=>setPayments(prev=>[...prev,{id:uid(),amount:"",date:todayStr(),method:""}]);
+  const updatePayment=(id,field,val)=>setPayments(prev=>prev.map(p=>p.id===id?{...p,[field]:val}:p));
+  const removePayment=id=>setPayments(prev=>prev.filter(p=>p.id!==id));
+
   const albumsTotal=selAlbums.reduce((s,a)=>s+(Number(a.albumPrice)||0),0);
   const upgTotal=upgrades.reduce((s,u)=>{const q=Number(selUpg[u.id]||0);return s+(q>0?u.price*q:0);},0);
   const subtotal=albumsTotal+upgTotal;
@@ -708,6 +916,10 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         customerName:customerName.trim(),phone,email,dateCreated,
         deadline:deadline||"",priority,vip,custNote:custNote||"",
         manualFlag:manualFlag||"",manualFlagNote:manualFlagNote||"",
+        photos,
+        payments:payments.filter(p=>p.amount),
+        paymentDueDate:paymentDueDate||"",
+        refunded,refundAmount:refunded?Number(refundAmount)||0:0,
         selectedAlbums:selAlbums,albumType:selAlbums[0]?.albumType||"",albumPrice:selAlbums[0]?.albumPrice||0,
         selectedUpgrades:selUpg,upgradeNames,upgradePrices,
         total:subtotal,discountType:discType,discountValue:Number(discVal)||0,finalTotal,
@@ -871,6 +1083,9 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
               </label>
             </Field>
           </div>
+          <Field label="Payment Due Date (Optional)" style={{marginBottom:14}}>
+            <input type="date" value={paymentDueDate} onChange={e=>setPaymentDueDate(e.target.value)} style={inp}/>
+          </Field>
           <Field label="Status">
             <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:4}}>
               {STATUSES.map(s=>{
@@ -881,6 +1096,64 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
               })}
             </div>
           </Field>
+        </div>
+
+        {/* Payment History */}
+        <div style={sec}>
+          <div style={{fontWeight:700,fontSize:15,color:"#0f172a",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #f1f5f9"}}>
+            💰 Payment History
+            {finalTotal>0&&<span style={{fontSize:12,fontWeight:400,color:"#64748b",marginLeft:8}}>{fmt$(totalReceived)} received · {fmt$(Math.max(0,finalTotal-totalReceived))} balance</span>}
+          </div>
+          {payments.map(p=>(
+            <div key={p.id} style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",background:"#f8fafc",borderRadius:10,padding:"10px 12px",border:"1px solid #e8ecf0"}}>
+              <input type="number" value={p.amount} onChange={e=>updatePayment(p.id,"amount",e.target.value)} placeholder="Amount $" style={{...inp,flex:1,fontSize:13,padding:"8px 10px"}}/>
+              <input type="date" value={p.date} onChange={e=>updatePayment(p.id,"date",e.target.value)} style={{...inp,flex:1,fontSize:13,padding:"8px 10px"}}/>
+              <select value={p.method} onChange={e=>updatePayment(p.id,"method",e.target.value)} style={{...inp,flex:1,fontSize:13,padding:"8px 10px"}}>
+                <option value="">Method…</option>
+                {paymentMethods.map(pm=><option key={pm} value={pm}>{pm}</option>)}
+              </select>
+              <button onClick={()=>removePayment(p.id)} style={{background:"none",border:"none",color:RED,cursor:"pointer",fontSize:20,padding:"0 4px",lineHeight:1,flexShrink:0}}>×</button>
+            </div>
+          ))}
+          <button onClick={addPayment} style={{padding:"8px 18px",borderRadius:8,border:`1.5px dashed ${GREEN}`,background:"#f0fdf4",color:GREEN,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add Payment</button>
+        </div>
+
+        {/* Refund */}
+        <div style={sec}>
+          <div style={{fontWeight:700,fontSize:15,color:"#0f172a",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #f1f5f9"}}>↩️ Refund</div>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:14,color:"#0f172a",fontWeight:600}}>
+            <input type="checkbox" checked={refunded} onChange={e=>setRefunded(e.target.checked)} style={{width:17,height:17,accentColor:RED}}/>
+            Refund Issued
+          </label>
+          {refunded&&(
+            <div style={{marginTop:12}}>
+              <Field label="Refund Amount">
+                <input type="number" value={refundAmount} onChange={e=>setRefundAmount(e.target.value)} placeholder="0.00" style={inp}/>
+              </Field>
+            </div>
+          )}
+        </div>
+
+        {/* Photo Attachments */}
+        <div style={sec}>
+          <div style={{fontWeight:700,fontSize:15,color:"#0f172a",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #f1f5f9"}}>📎 Attachments ({photos.length}/4)</div>
+          {photos.length>0&&(
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
+              {photos.map((ph,i)=>(
+                <div key={i} style={{position:"relative"}}>
+                  <img src={ph} alt={`photo ${i+1}`} style={{width:80,height:80,borderRadius:10,objectFit:"cover",border:"2px solid #e2e8f0"}}/>
+                  <button onClick={()=>setPhotos(prev=>prev.filter((_,idx)=>idx!==i))} style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",background:RED,border:"2px solid white",color:"white",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,lineHeight:1}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {photos.length<4&&(
+            <label style={{display:"inline-block",padding:"9px 18px",borderRadius:8,border:`1.5px dashed ${BLUE}`,background:"#eff2ff",color:BLUE,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>
+              {photoUploading?"Uploading…":"📷 Add Photo"}
+              <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} style={{display:"none"}} disabled={photoUploading}/>
+            </label>
+          )}
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:8}}>Screenshots, approvals, reference images. Max 4.</div>
         </div>
 
         {/* Notes */}
@@ -908,6 +1181,16 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         {isEdit&&(
           <div style={{marginBottom:14}}>
             <SmartReminder order={{...order,customerName,status}} th={th}/>
+          </div>
+        )}
+
+        {/* Invoice button - edit only */}
+        {isEdit&&(
+          <div style={{marginBottom:14}}>
+            <button onClick={()=>generateInvoice({...order,customerName,finalTotal,payments,paymentDueDate,selectedAlbums:selAlbums,selectedUpgrades:selUpg,upgradeNames:Object.fromEntries(upgrades.map(u=>[u.id,u.name])),upgradePrices:Object.fromEntries(upgrades.map(u=>[u.id,u.price]))})}
+              style={{width:"100%",padding:"12px",borderRadius:10,border:`1.5px solid ${NAVY}`,background:"white",color:NAVY,cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              📄 Generate Invoice{order.invoiceNum?` (${order.invoiceNum})`:""}
+            </button>
           </div>
         )}
 
@@ -1042,72 +1325,248 @@ function UsersTab({users,onSave,th}){
   );
 }
 
-// Business Insights Tab
+// Business Insights Tab (V5: monthly chart, heatmap, avg time per status)
 function InsightsTab({ orders, th }) {
   const total=orders.length;
+  const [chartYear,setChartYear]=useState(new Date().getFullYear());
   if(!total) return <div style={{color:th.subtext,fontSize:14,textAlign:"center",padding:"40px 0"}}>No orders yet to analyze.</div>;
 
-  const revenue=orders.reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
+  const revenue=orders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
   const avgVal=revenue/total;
-  const paid=orders.filter(o=>o.paid).length;
+  const paidCount=orders.filter(o=>o.paid).length;
   const done=orders.filter(o=>o.status==="Order Done");
   const returnCust=orders.reduce((acc,o)=>{const n=(o.customerName||"").toLowerCase();acc[n]=(acc[n]||0)+1;return acc;},{});
   const returning=Object.values(returnCust).filter(c=>c>1).length;
   const totalCust=Object.keys(returnCust).length;
   const returnRate=totalCust>0?Math.round((returning/totalCust)*100):0;
-
-  // Best month
-  const byMonth=orders.reduce((acc,o)=>{if(!o.dateCreated)return acc;const m=o.dateCreated.slice(0,7);acc[m]=(acc[m]||0)+1;return acc;},{});
-  const bestMonth=Object.entries(byMonth).sort((a,b)=>b[1]-a[1])[0];
-
-  // Most popular album
-  const byAlbum=orders.reduce((acc,o)=>{const names=(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType).filter(Boolean);names.forEach(n=>{acc[n]=(acc[n]||0)+1;});return acc;},{});
+  const byAlbum=orders.reduce((acc,o)=>{(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType).filter(Boolean).forEach(n=>{acc[n]=(acc[n]||0)+1;});return acc;},{});
   const topAlbum=Object.entries(byAlbum).sort((a,b)=>b[1]-a[1])[0];
+  const outstanding=orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
+    const ft=Number(o.finalTotal)||0;
+    const rec=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);
+    return s+(ft-rec);
+  },0);
+
+  const years=[...new Set(orders.map(o=>(o.dateCreated||"").slice(0,4)).filter(Boolean))].sort().reverse();
+  const monthlyData=Array.from({length:12},(_,i)=>{
+    const mo=String(i+1).padStart(2,"0");
+    const mo_orders=orders.filter(o=>(o.dateCreated||"").startsWith(`${chartYear}-${mo}`)&&!o.refunded);
+    return{month:new Date(chartYear,i,1).toLocaleDateString("en-US",{month:"short"}),revenue:mo_orders.reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0),count:mo_orders.length};
+  });
+  const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
+
+  const heatData=Array.from({length:12},(_,i)=>{
+    const mo=String(i+1).padStart(2,"0");
+    const all=orders.filter(o=>(o.dateCreated||"").slice(5,7)===mo);
+    return{month:new Date(2024,i,1).toLocaleDateString("en-US",{month:"short"}),count:all.length,revenue:all.reduce((s,o)=>s+(Number(o.finalTotal)||0),0)};
+  });
+  const maxCount=Math.max(...heatData.map(h=>h.count),1);
+
+  const statusTimes=STATUSES.slice(0,-1).map(s=>{
+    const rel=orders.filter(o=>o.status===s&&o.statusChangedAt);
+    const avg=rel.length>0?rel.reduce((sum,o)=>sum+daysSince(o.statusChangedAt),0)/rel.length:0;
+    return{status:s,avg:Math.round(avg*10)/10,count:rel.length};
+  });
 
   const card=(icon,label,val,sub)=>(
     <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
-      <div style={{fontSize:24,marginBottom:6}}>{icon}</div>
-      <div style={{fontSize:22,fontWeight:800,color:BLUE}}>{val}</div>
+      <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
+      <div style={{fontSize:20,fontWeight:800,color:BLUE}}>{val}</div>
       <div style={{fontSize:13,fontWeight:700,color:th.text,marginTop:2}}>{label}</div>
       {sub&&<div style={{fontSize:11,color:th.subtext,marginTop:3}}>{sub}</div>}
     </div>
   );
 
-  const fmt=(y,m)=>{const d=new Date(y+"-"+m+"-01");return d.toLocaleDateString("en-US",{month:"long",year:"numeric"});};
-
   return(
     <div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        {card("📦","Total Orders",total,`${paid} paid · ${total-paid} unpaid`)}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+        {card("📦","Total Orders",total,`${paidCount} paid · ${total-paidCount} unpaid`)}
         {card("💰","Avg Order Value",fmt$(avgVal),`Total revenue: ${fmt$(revenue)}`)}
-        {card("🔁","Customer Return Rate",`${returnRate}%`,`${returning} of ${totalCust} customers returned`)}
-        {card("🏆","Most Popular Album",topAlbum?topAlbum[0]:"—",topAlbum?`${topAlbum[1]} orders`:"")}
-        {card("📅","Best Month",bestMonth?fmt(...bestMonth[0].split("-")):"—",bestMonth?`${bestMonth[1]} orders`:"")}
-        {card("✅","Completed Orders",done.length,`${total>0?Math.round((done.length/total)*100):0}% completion rate`)}
+        {card("🔁","Return Rate",`${returnRate}%`,`${returning} of ${totalCust} customers returned`)}
+        {card("🏆","Top Album",topAlbum?topAlbum[0]:"—",topAlbum?`${topAlbum[1]} orders`:"")}
+        {card("✅","Completed",done.length,`${total>0?Math.round((done.length/total)*100):0}% completion rate`)}
+        {card("💸","Outstanding",fmt$(outstanding),`${orders.filter(o=>!o.paid&&o.status!=="Order Done").length} unpaid orders`)}
+      </div>
+
+      {/* Monthly Revenue Chart */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:14,color:th.text}}>📈 Monthly Revenue</div>
+          <select value={chartYear} onChange={e=>setChartYear(Number(e.target.value))} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"system-ui,sans-serif",outline:"none"}}>
+            {years.map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",alignItems:"flex-end",gap:6,height:120}}>
+          {monthlyData.map((m,i)=>(
+            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+              <div style={{fontSize:8,color:BLUE,fontWeight:700}}>{m.revenue>0?`$${Math.round(m.revenue/100)/10}k`:""}</div>
+              <div title={`${m.month}: ${fmt$(m.revenue)} · ${m.count} orders`}
+                style={{width:"100%",background:m.revenue>0?BLUE:"#f1f5f9",borderRadius:"3px 3px 0 0",height:`${Math.max((m.revenue/maxRev)*90,m.revenue>0?6:3)}px`,transition:"height .3s"}}/>
+              <div style={{fontSize:8,color:"#94a3b8",fontWeight:600}}>{m.month}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Busiest Months Heatmap */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>🗓 Busiest Months (All Time)</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+          {heatData.map((h,i)=>{
+            const intensity=h.count/maxCount;
+            const bg=h.count===0?"#f1f5f9":`rgba(82,113,255,${0.15+intensity*0.85})`;
+            return(
+              <div key={i} title={`${h.month}: ${h.count} orders · ${fmt$(h.revenue)}`}
+                style={{background:bg,borderRadius:8,padding:"10px 6px",textAlign:"center"}}>
+                <div style={{fontSize:11,fontWeight:700,color:h.count>0?"white":"#94a3b8"}}>{h.month}</div>
+                <div style={{fontSize:14,fontWeight:800,color:h.count>0?"white":"#cbd5e1"}}>{h.count}</div>
+                {h.revenue>0&&<div style={{fontSize:9,color:"rgba(255,255,255,0.8)"}}>{fmt$(h.revenue)}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Average Time Per Status */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>⏱ Average Time Per Status</div>
+        {statusTimes.map((s,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<statusTimes.length-1?"1px solid #f1f5f9":"none"}}>
+            <div>
+              <div style={{fontSize:13,color:th.text,fontWeight:600}}>{s.status}</div>
+              <div style={{fontSize:11,color:th.subtext}}>{s.count} orders here now</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:16,fontWeight:800,color:s.avg>14?RED:s.avg>7?AMBER:BLUE}}>{s.avg}d</div>
+              <div style={{fontSize:10,color:th.subtext}}>avg days</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// Customer Management Tab
-function CustomersTab({ customers, onSave, orders, th }) {
+
+// Tag List Editor (no price column)
+function TagListEditor({ items, onSave, th, placeholder="Add item…" }) {
+  const [list,setList]=useState([...(items||[])]);
+  const [newVal,setNewVal]=useState("");
+  const inp=iStyle(th);
+  const update=u=>{setList(u);onSave(u);};
+  const add=()=>{if(!newVal.trim())return;update([...list,{id:uid(),name:newVal.trim()}]);setNewVal("");};
+  const remove=id=>update(list.filter(i=>i.id!==id));
+  const change=(id,v)=>update(list.map(i=>i.id===id?{...i,name:v}:i));
+  return(
+    <div>
+      {list.map(item=>(
+        <div key={item.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,background:th.card,borderRadius:10,padding:"10px 14px",border:`1px solid ${th.border}`}}>
+          <input value={item.name} onChange={e=>change(item.id,e.target.value)} style={{...inp,flex:1,padding:"8px 10px",fontSize:13}}/>
+          <button onClick={()=>remove(item.id)} style={{padding:"8px 12px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>✕</button>
+        </div>
+      ))}
+      <div style={{display:"flex",gap:8,marginTop:10}}>
+        <input value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder={placeholder}
+          style={{...inp,flex:1,padding:"9px 12px",fontSize:13}} onKeyDown={e=>e.key==="Enter"&&add()}/>
+        <button onClick={add} style={{padding:"9px 16px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button>
+      </div>
+    </div>
+  );
+}
+
+// Lists & Tags Tab (sources + customer tags)
+function ListsTagsTab({ sources, onSaveSources, customerTags, onSaveCustomerTags, th }) {
+  const [section,setSection]=useState("sources");
+  return(
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        {[["sources","📍 Sources"],["tags","🏷️ Customer Tags"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setSection(k)} style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${section===k?BLUE:"#e2e8f0"}`,background:section===k?"#eff2ff":"white",color:section===k?BLUE:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>{l}</button>
+        ))}
+      </div>
+      {section==="sources"&&(
+        <div>
+          <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>These are the "How did they find us?" options on customer profiles. Add, edit or remove anytime.</div>
+          <TagListEditor items={sources} onSave={onSaveSources} th={th} placeholder="e.g. TikTok"/>
+        </div>
+      )}
+      {section==="tags"&&(
+        <div>
+          <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>Create tags you can apply to customers. E.g. Wholesale, Rabbi, Photographer, Family.</div>
+          <TagListEditor items={customerTags} onSave={onSaveCustomerTags} th={th} placeholder="e.g. Wholesale"/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Trash Tab
+function TrashTab({ trash, onRestore, onDeletePermanent, th }) {
+  return(
+    <div>
+      {(!trash||trash.length===0)&&<div style={{color:th.subtext,fontSize:14,textAlign:"center",padding:"40px 0"}}>🗑️ Trash is empty.</div>}
+      {(trash||[]).map(o=>(
+        <div key={o.id} style={{background:th.card,borderRadius:12,padding:16,marginBottom:10,border:`1px solid ${th.border}`,opacity:0.85}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:14,color:th.text}}>{o.customerName}</div>
+              <div style={{fontSize:12,color:th.subtext,marginTop:2}}>{o.status} · {fmtD(o.dateCreated)}</div>
+              <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>Deleted {fmtDateTime(o.deletedAt)}</div>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>onRestore(o)} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${GREEN}`,background:"transparent",color:GREEN,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>↩️ Restore</button>
+              <button onClick={()=>onDeletePermanent(o)} style={{padding:"6px 14px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete Forever</button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {trash&&trash.length>0&&<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",marginTop:8}}>Orders in trash are permanently deleted after 30 days.</div>}
+    </div>
+  );
+}
+
+// Customer Management Tab (V5: lifetime value, export CSV, tags, source)
+function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) {
   const [search,setSearch]=useState("");
   const [editing,setEditing]=useState(null);
-  const [editName,setEditName]=useState(""); const [editPhone,setEditPhone]=useState(""); const [editEmail,setEditEmail]=useState(""); const [editVip,setEditVip]=useState(false); const [editNote,setEditNote]=useState("");
+  const [editName,setEditName]=useState(""); const [editPhone,setEditPhone]=useState("");
+  const [editEmail,setEditEmail]=useState(""); const [editVip,setEditVip]=useState(false);
+  const [editNote,setEditNote]=useState(""); const [editSource,setEditSource]=useState("");
+  const [editTags,setEditTags]=useState([]);
   const inp=iStyle(th);
 
   const filtered=(customers||[]).filter(c=>(c.name||"").toLowerCase().includes(search.toLowerCase()));
-  const startEdit=c=>{setEditing(c.id);setEditName(c.name);setEditPhone(c.phone||"");setEditEmail(c.email||"");setEditVip(c.vip||false);setEditNote(c.note||"");};
-  const saveEdit=()=>{onSave((customers||[]).map(c=>c.id===editing?{...c,name:editName,phone:editPhone,email:editEmail,vip:editVip,note:editNote}:c));setEditing(null);};
-  const remove=id=>{if(window.confirm("Remove this customer?")) onSave((customers||[]).filter(c=>c.id!==id));};
   const custOrders=name=>(orders||[]).filter(o=>(o.customerName||"").toLowerCase()===(name||"").toLowerCase());
+  const lifetimeValue=name=>custOrders(name).filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
+
+  const startEdit=c=>{setEditing(c.id);setEditName(c.name);setEditPhone(c.phone||"");setEditEmail(c.email||"");setEditVip(c.vip||false);setEditNote(c.note||"");setEditSource(c.source||"");setEditTags(c.tags||[]);};
+  const saveEdit=()=>{onSave((customers||[]).map(c=>c.id===editing?{...c,name:editName,phone:editPhone,email:editEmail,vip:editVip,note:editNote,source:editSource,tags:editTags}:c));setEditing(null);};
+  const remove=id=>{if(window.confirm("Remove this customer?")) onSave((customers||[]).filter(c=>c.id!==id));};
+
+  const exportCSV=()=>{
+    const headers=["Name","Phone","Email","VIP","Source","Tags","Total Orders","Lifetime Value","Last Order"];
+    const rows=(customers||[]).map(c=>{
+      const co=custOrders(c.name);
+      return[c.name,c.phone||"",c.email||"",c.vip?"Yes":"No",c.source||"",(c.tags||[]).join("; "),co.length,lifetimeValue(c.name),c.lastOrder||""];
+    });
+    const csv=[headers,...rows].map(r=>r.map(v=>`"${(v||"").toString().replace(/"/g,'""')}"`).join(",")).join("
+");
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download=`LuxeBound_Customers_${todayStr()}.csv`;
+    a.click();
+  };
 
   return(
     <div>
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search customers…" style={{...inp,marginBottom:14,fontSize:13}}/>
+      <div style={{display:"flex",gap:10,marginBottom:14}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search customers…" style={{...inp,flex:1,fontSize:13}}/>
+        <button onClick={exportCSV} style={{padding:"10px 16px",borderRadius:8,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",whiteSpace:"nowrap"}}>📥 Export CSV</button>
+      </div>
       {filtered.length===0&&<div style={{color:th.subtext,fontSize:14,textAlign:"center",padding:"40px 0"}}>No customers yet. They are added automatically when you create orders.</div>}
       {filtered.map(c=>{
         const co=custOrders(c.name);
+        const lv=lifetimeValue(c.name);
         const isEditing=editing===c.id;
         return(
           <div key={c.id} style={{background:th.card,borderRadius:12,padding:16,marginBottom:10,border:`1px solid ${th.border}`}}>
@@ -1117,9 +1576,27 @@ function CustomersTab({ customers, onSave, orders, th }) {
                   <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Name" style={{...inp,fontSize:13}}/>
                   <input value={editPhone} onChange={e=>setEditPhone(fmtPhone(e.target.value))} placeholder="Phone" style={{...inp,fontSize:13}}/>
                   <input value={editEmail} onChange={e=>setEditEmail(e.target.value)} placeholder="Email" style={{...inp,fontSize:13}}/>
-                  <textarea value={editNote} onChange={e=>setEditNote(e.target.value)} placeholder="Permanent note (shown on new orders)…" rows={2} style={{...inp,resize:"vertical",fontSize:13}}/>
+                  <select value={editSource} onChange={e=>setEditSource(e.target.value)} style={{...inp,fontSize:13}}>
+                    <option value="">How did they find us?</option>
+                    {(sources||DEFAULT_SOURCES).map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
+                  </select>
+                  <textarea value={editNote} onChange={e=>setEditNote(e.target.value)} placeholder="Permanent note…" rows={2} style={{...inp,resize:"vertical",fontSize:13}}/>
+                  {(customerTags||[]).length>0&&(
+                    <div>
+                      <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.6px"}}>Tags</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {(customerTags||[]).map(tag=>(
+                          <label key={tag.id} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:12,fontFamily:"system-ui,sans-serif",background:editTags.includes(tag.name)?"#eff2ff":"#f8fafc",padding:"5px 10px",borderRadius:20,border:`1.5px solid ${editTags.includes(tag.name)?BLUE:"#e2e8f0"}`,color:editTags.includes(tag.name)?BLUE:"#64748b"}}>
+                            <input type="checkbox" checked={editTags.includes(tag.name)} onChange={e=>setEditTags(prev=>e.target.checked?[...prev,tag.name]:prev.filter(t=>t!==tag.name))} style={{display:"none"}}/>
+                            {tag.name}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:th.text,fontFamily:"system-ui,sans-serif"}}>
-                    <input type="checkbox" checked={editVip} onChange={e=>setEditVip(e.target.checked)} style={{accentColor:"#8b5cf6"}}/>⭐ VIP Customer
+                    <input type="checkbox" checked={editVip} onChange={e=>setEditVip(e.target.checked)} style={{accentColor:"#8b5cf6"}}/>
+                    ⭐ VIP Customer
                   </label>
                 </div>
                 <div style={{display:"flex",gap:8}}>
@@ -1131,12 +1608,14 @@ function CustomersTab({ customers, onSave, orders, th }) {
               <div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                   <div>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap"}}>
                       <div style={{fontWeight:700,fontSize:15,color:th.text}}>{c.name}</div>
                       {c.vip&&<span style={{fontSize:10,background:"#fdf4ff",color:"#7e22ce",padding:"2px 7px",borderRadius:20,fontWeight:700}}>⭐ VIP</span>}
+                      {(c.tags||[]).map(tag=><span key={tag} style={{fontSize:10,background:"#eff2ff",color:BLUE,padding:"2px 7px",borderRadius:20,fontWeight:600}}>{tag}</span>)}
                     </div>
                     {c.phone&&<div style={{fontSize:12,color:th.subtext}}>{c.phone}</div>}
                     {c.email&&<div style={{fontSize:12,color:th.subtext}}>{c.email}</div>}
+                    {c.source&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>📍 {c.source}</div>}
                     {c.note&&<div style={{fontSize:12,color:"#92400e",background:"#fff7ed",padding:"5px 10px",borderRadius:7,marginTop:6,border:"1px solid #fed7aa"}}>📝 {c.note}</div>}
                   </div>
                   <div style={{display:"flex",gap:6}}>
@@ -1144,7 +1623,11 @@ function CustomersTab({ customers, onSave, orders, th }) {
                     <button onClick={()=>remove(c.id)} style={{padding:"5px 12px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>✕</button>
                   </div>
                 </div>
-                <div style={{fontSize:11,color:th.subtext}}>📦 {co.length} order{co.length!==1?"s":""}{c.lastOrder?` · Last: ${fmtD(c.lastOrder)}`:""}</div>
+                <div style={{display:"flex",gap:16,fontSize:12,color:th.subtext}}>
+                  <span>📦 {co.length} order{co.length!==1?"s":""}</span>
+                  <span>💰 {fmt$(lv)} lifetime</span>
+                  {c.lastOrder&&<span>📅 Last: {fmtD(c.lastOrder)}</span>}
+                </div>
               </div>
             )}
           </div>
@@ -1153,6 +1636,7 @@ function CustomersTab({ customers, onSave, orders, th }) {
     </div>
   );
 }
+
 
 function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,darkMode,onToggleDark,th}){
   const [displayName,setDisplayName]=useState(currentUser?.displayName||"");
@@ -1253,14 +1737,16 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,da
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
     {id:"albums",icon:"📚",label:"Albums",desc:"Manage album types & prices"},
     {id:"upgrades",icon:"✨",label:"Upgrades",desc:"Manage add-ons & prices"},
     {id:"payments",icon:"💳",label:"Payments",desc:"Payment methods"},
+    {id:"lists",icon:"📋",label:"Lists & Tags",desc:"Sources, customer tags"},
     {id:"customers",icon:"👥",label:"Customers",desc:"Customer database & history"},
     {id:"insights",icon:"📊",label:"Business Insights",desc:"Revenue, trends & analytics"},
+    {id:"trash",icon:"🗑️",label:"Trash",desc:`${(trash||[]).length} deleted order${(trash||[]).length!==1?"s":""}`},
     ...(isAdmin?[{id:"users",icon:"🔑",label:"Users",desc:"Manage user accounts"}]:[]),
     {id:"account",icon:"🙋",label:"My Account",desc:"Password & display settings"},
   ];
@@ -1274,7 +1760,9 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
         case "users":     return <UsersTab users={users} onSave={onSaveUsers} th={th}/>;
         case "account":   return <AccountTab currentUser={currentUser} onChangePw={onChangePw} onUpdateDisplayName={onUpdateDisplayName} onUpdatePhoto={onUpdatePhoto} darkMode={darkMode} onToggleDark={onToggleDark} th={th}/>;
         case "insights":  return <InsightsTab orders={orders} th={th}/>;
-        case "customers": return <CustomersTab customers={customers} onSave={onSaveCustomer} orders={orders} th={th}/>;
+        case "customers": return <CustomersTab customers={customers} onSave={onSaveCustomer} orders={orders} sources={sources} customerTags={customerTags} th={th}/>;
+        case "lists":     return <ListsTagsTab sources={sources} onSaveSources={onSaveSources} customerTags={customerTags} onSaveCustomerTags={onSaveCustomerTags} th={th}/>;
+        case "trash":     return <TrashTab trash={trash} onRestore={onRestoreOrder} onDeletePermanent={onDeletePermanent} th={th}/>;
         default: return null;
       }
     };
@@ -1319,6 +1807,9 @@ export default function App() {
   const [payments,setPayments]=useState(DEFAULT_PAYMENTS);
   const [users,setUsers]=useState(DEFAULT_USERS);
   const [customers,setCustomers]=useState([]);
+  const [trash,setTrash]=useState([]);
+  const [sources,setSources]=useState(DEFAULT_SOURCES);
+  const [customerTags,setCustomerTags]=useState([]);
   const [darkMode,setDarkMode]=useState(false);
   const [editingOrder,setEditingOrder]=useState(null);
   const [statusFilter,setStatusFilter]=useState(null);
@@ -1334,14 +1825,26 @@ export default function App() {
     const unsubs=[];
     unsubs.push(onSnapshot(collection(db,"orders"),snap=>setOrders(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("orders:",e)));
     unsubs.push(onSnapshot(collection(db,"customers"),snap=>setCustomers(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("customers:",e)));
+    unsubs.push(onSnapshot(collection(db,"trash"),snap=>setTrash(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("trash:",e)));
     const cfg=(name,setter,fallback)=>unsubs.push(onSnapshot(doc(db,"config",name),snap=>{if(snap.exists())setter(snap.data().items??fallback);else setter(fallback);},e=>console.error(name,e)));
     cfg("albums",setAlbums,DEFAULT_ALBUMS);
     cfg("upgrades",setUpgrades,DEFAULT_UPGRADES);
     cfg("payments",setPayments,DEFAULT_PAYMENTS);
     cfg("users",setUsers,DEFAULT_USERS);
+    cfg("sources",setSources,DEFAULT_SOURCES);
+    cfg("customerTags",setCustomerTags,[]);
     setReady(true);
     return()=>unsubs.forEach(u=>u());
   },[]);
+
+  // V5: Auto-cleanup trash older than 30 days
+  useEffect(()=>{
+    trash.forEach(async o=>{
+      if(o.deletedAt&&daysSince(o.deletedAt)>30){
+        await deleteDoc(doc(db,"trash",o.id));
+      }
+    });
+  },[trash]);
 
   const theme={bg:"#f1f5f9",card:"white",text:"#0f172a",subtext:"#64748b",border:"#e2e8f0",inp:"#f8fafc"};
   const saveConfig=async(name,items)=>await setDoc(doc(db,"config",name),{items});
@@ -1355,9 +1858,23 @@ export default function App() {
   };
 
   const deleteOrder=async(order)=>{
-    if(window.confirm(`Delete order for ${order.customerName}? This cannot be undone.`)){
-      await deleteDoc(doc(db,"orders",order.id));
+    if(window.confirm(`Move order for ${order.customerName} to Trash?`)){
+      const{id,...rest}=order;
+      await setDoc(doc(db,"trash",id),clean({...rest,originalId:id,deletedAt:new Date().toISOString()}));
+      await deleteDoc(doc(db,"orders",id));
       setView("dashboard");setEditingOrder(null);
+    }
+  };
+
+  const restoreOrder=async(o)=>{
+    const{id,deletedAt,originalId,...rest}=o;
+    await addDoc(collection(db,"orders"),clean(rest));
+    await deleteDoc(doc(db,"trash",id));
+  };
+
+  const deletePermanent=async(o)=>{
+    if(window.confirm(`Permanently delete order for ${o.customerName}? Cannot be undone.`)){
+      await deleteDoc(doc(db,"trash",o.id));
     }
   };
 
@@ -1368,6 +1885,14 @@ export default function App() {
   const snoozeOrder=async(order,days)=>{
     const until=new Date(Date.now()+days*864e5).toISOString().split("T")[0];
     await setDoc(doc(db,"orders",order.id),clean({...order,snoozedUntil:until}));
+  };
+
+  const quickStatus=async(order,newStatus)=>{
+    if(newStatus==="Order Done"&&!order.paid){alert('Please mark as Paid before setting "Order Done".');return;}
+    const who=currentUser?.displayName||currentUser?.email||"Unknown";
+    const diff=buildDiff(order,{...order,status:newStatus},who);
+    const editHistory=[...(order.editHistory||[]),...(diff?[diff]:[])];
+    await setDoc(doc(db,"orders",order.id),clean({...order,status:newStatus,statusChangedAt:new Date().toISOString(),editHistory}));
   };
 
   const bulkStatus=async(ids,status)=>{
@@ -1400,6 +1925,9 @@ export default function App() {
     for(const c of toDelete){await deleteDoc(doc(db,"customers",c.id));}
   };
 
+  const saveSources=async(items)=>await saveConfig("sources",items);
+  const saveCustomerTags=async(items)=>await saveConfig("customerTags",items);
+
   const changePw=async(email,pass)=>await saveUsers(users.map(u=>u.email===email?{...u,password:pass}:u));
   const updateDisplayName=async(email,name)=>await saveUsers(users.map(u=>u.email===email?{...u,displayName:name}:u));
   const updatePhoto=async(email,photo)=>await saveUsers(users.map(u=>u.email===email?{...u,photo:photo||null}:u));
@@ -1416,7 +1944,7 @@ export default function App() {
       onSave={saveOrder} onDelete={deleteOrder}
       onCancel={()=>{setView("dashboard");setEditingOrder(null);}}
       currentUser={currentUser} customers={customers} onSaveCustomer={saveCustomer}
-      th={theme}/>
+      sources={sources} th={theme}/>
   );
 
   if(view==="settings") return(
@@ -1426,8 +1954,10 @@ export default function App() {
       upgrades={upgrades}       onSaveUpgrades={i=>saveConfig("upgrades",i)}
       paymentMethods={payments} onSavePayments={i=>saveConfig("payments",i)}
       users={users}             onSaveUsers={saveUsers}
-      orders={orders}           customers={customers}
-      onSaveCustomer={saveCustomersList}
+      orders={orders}           customers={customers}   onSaveCustomer={saveCustomersList}
+      sources={sources}         onSaveSources={saveSources}
+      customerTags={customerTags} onSaveCustomerTags={saveCustomerTags}
+      trash={trash}             onRestoreOrder={restoreOrder} onDeletePermanent={deletePermanent}
       darkMode={darkMode}       onToggleDark={togDark}
       onChangePw={changePw}     onUpdateDisplayName={updateDisplayName} onUpdatePhoto={updatePhoto}
       onBack={()=>{setView("dashboard");setSettingsTab(null);}}
@@ -1443,6 +1973,7 @@ export default function App() {
       onEdit={o=>{setEditingOrder(o);setView("editOrder");}}
       onDelete={deleteOrder}
       onPin={pinOrder}
+      onQuickStatus={quickStatus}
       onSnooze={snoozeOrder}
       onBulkStatus={bulkStatus}
       onSettings={()=>setView("settings")}
