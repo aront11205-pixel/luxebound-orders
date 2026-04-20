@@ -45,6 +45,85 @@ const DEFAULT_PAYMENTS = ["CC","CC/CASH","CC/QP","CASH","CHECK","QP"];
 const DEFAULT_USERS = [
   { id:"user1", email:"zupnickyona@gmail.com", password:"8606", role:"admin", displayName:"Yona" }
 ];
+// ── V6: Yiddish translations ─────────────────────────────
+const YI = {
+  // Navigation & general
+  "New Order":"נייע באַשטעלונג","Edit Order":"רעדאַקטירן באַשטעלונג","Settings":"סעטינגס",
+  "Sign Out":"אויסלאָגן","Export":"עקספּאָרט","All Orders":"אַלע באַשטעלונגען",
+  "Save Changes":"ספּייכערן ענדערונגען","Create Order":"שאַפֿן באַשטעלונג","Cancel":"אָפּזאָגן",
+  "Delete":"לעשן","Edit":"רעדאַקטירן","Back":"צוריק",
+  // Dashboard
+  "Total Orders":"אַלע באַשטעלונגען","Revenue":"הכנסה","Your Profit":"אייַער געווין",
+  "Zno Costs":"זנא קאָסטן","Outstanding":"אַפֿן שולד","Pipeline":"פּייפּליין",
+  "Flagged Orders":"פֿאַנאַנדערגעוויזענע באַשטעלונגען","No flagged orders":"קיין פֿאַנאַנדערגעוויזענע באַשטעלונגען",
+  "Upcoming Deadlines":"קומענדיקע טערמינען","No upcoming deadlines":"קיין קומענדיקע טערמינען",
+  // Order form sections
+  "Customer Info":"קונה אינפֿאָ","Albums":"אַלבאָמען","Add-ons":"צוגאָבן",
+  "Discount":"רעדוקציע","Order Summary":"באַשטעלונג סומאַריע","Payment & Status":"צאָלונג & סטאַטוס",
+  "Notes":"אָנמערקונגען","Flag This Order":"פֿאַנאַנדערווייַזן דעם באַשטעלונג",
+  "Payment History":"צאָלונג היסטאָריע","Attachments":"צוגעלייגטע פֿילן","Refund":"צוריקגאַב",
+  // Statuses
+  "New Order":"נייע באַשטעלונג","Sent for First Look":"געשיקט פֿאַר ערשטן קוק",
+  "Waiting for Changes":"ווארטן אויף ענדערונגען","Waiting for Pictures":"ווארטן אויף בילדער",
+  "Waiting for Approval":"ווארטן אויף גענעמיקונג","Waiting to be Ordered":"ווארטן צו באַשטעלן",
+  "Ordered":"באַשטעלט","In Production":"אין פּראָדוקציע","Shipped":"אַוועקגעשיקט",
+  "Delivered":"איבערגעגעבן","Order Done":"באַשטעלונג פֿאַרטיק",
+  // Settings
+  "Albums":"אַלבאָמען","Upgrades":"אַפּגרייד","Payments":"צאָלונגען","Customers":"קונות",
+  "Business Insights":"ביזנעס אינסיכטן","Trash":"מיסטקאָרב","Users":"ניצערס",
+  "My Account":"מיין חשבון","Lists & Tags":"רשימות & טאַגן","Reminders":"דערמאָנונגען",
+  "Keyboard Shortcuts":"קלאַוויאַטור שאָרטקאַץ","Backup & Restore":"באַקאַפּ & ריסטאָר",
+  "Company Profile":"פֿירמע פּראָפֿיל",
+  // Common
+  "Save":"ספּייכערן","Add":"צוגעבן","Remove":"אַראָפּנעמען","Search":"זוכן",
+  "Paid":"באַצאָלט","Unpaid":"אומבאַצאָלט","Yes":"יאָ","No":"ניין",
+  "Total":"סומע","Profit":"געווין","Balance":"בילאַנס","Invoice":"חשבון",
+  "Deadline":"טערמין","Priority":"פּריאָריטעט","VIP":"וויפּ","Pinned":"פֿאַרפּינט",
+  "Follow Up":"נאָכפֿאָלגן","Goal":"ציל","Monthly":"מאָנאַטלעך","Yearly":"יערלעך",
+  "Dark Mode":"טונקל מאָד","Language":"שפּראַך","Display Name":"אָנוויי נאָמען",
+  "Password":"פּאַסוואָרט","Change Password":"ענדערן פּאַסוואָרט","Profile Photo":"פּראָפֿיל בילד",
+};
+
+const t = (lang, str) => lang === "yi" && YI[str] ? YI[str] : str;
+
+// ── V6: Hebrew calendar conversion ───────────────────────
+function toHebrewDate(dateStr) {
+  if(!dateStr) return "";
+  try {
+    const [y,m,d] = dateStr.split("-").map(Number);
+    // Use Intl API for Hebrew calendar
+    const date = new Date(y, m-1, d);
+    const hebrewFormatter = new Intl.DateTimeFormat("he-IL-u-ca-hebrew", {
+      year:"numeric", month:"long", day:"numeric"
+    });
+    return hebrewFormatter.format(date);
+  } catch { return ""; }
+}
+
+function DateField({ label, value, onChange, style: sx={}, th, lang }) {
+  const inp = iStyle(th);
+  const hebrew = toHebrewDate(value);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:5,...sx}}>
+      {label&&<label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>{t(lang,label)}</label>}
+      <input type="date" value={value} onChange={onChange} style={inp}/>
+      {hebrew&&value&&<div style={{fontSize:11,color:"#8b5cf6",marginTop:2}}>🗓 {hebrew}</div>}
+    </div>
+  );
+}
+
+// ── V6: Order number generator ───────────────────────────
+function assignInvoiceNumbers(orders) {
+  if(!orders||!orders.length) return {};
+  const sorted = [...orders].sort((a,b)=>(a.dateCreated||"").localeCompare(b.dateCreated||""));
+  const map = {};
+  sorted.forEach((o,i) => {
+    map[o.id] = `LB-${String(i+1).padStart(6,"0")}`;
+  });
+  return map;
+}
+
+
 const STATUSES = [
   "New Order","Sent for First Look","Waiting for Changes","Waiting for Pictures",
   "Waiting for Approval","Waiting to be Ordered","Ordered","In Production",
@@ -207,7 +286,12 @@ function LoginScreen({ users, onLogin }) {
     <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${NAVY} 0%,#1e3a8a 50%,#1e40af 100%)`,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"system-ui,sans-serif"}}>
       <div style={{width:"100%",maxWidth:420}}>
         <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{display:"flex",justifyContent:"center",marginBottom:16}}><Logo size={80}/></div>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+            {users._companyLogo
+              ?<img src={users._companyLogo} alt="logo" style={{width:80,height:80,borderRadius:"50%",objectFit:"cover"}}/>
+              :<Logo size={80}/>
+            }
+          </div>
           <div style={{fontSize:30,fontWeight:800,color:"white",letterSpacing:"-0.5px",fontFamily:"Georgia,serif"}}>LuxeBound Albums</div>
           <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6,letterSpacing:"2px",textTransform:"uppercase"}}>Order Management</div>
         </div>
@@ -538,6 +622,163 @@ function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus }) {
 
 
 // ══════════════════════════════════════════════════════════
+// V6: DAILY DIGEST BANNER
+// ══════════════════════════════════════════════════════════
+function DailyDigest({ orders, onDismiss, displayName }) {
+  const flagged = orders.filter(o => {
+    if(isSnoozed(o)||o.status==="Order Done") return false;
+    if(o.manualFlag) return true;
+    return !!getFlag(o);
+  });
+  const upcoming = orders.filter(o => {
+    const d = o.deadline||o.followUpDate;
+    if(!d) return false;
+    const days = (new Date(d) - new Date()) / 864e5;
+    return days >= 0 && days <= 7;
+  });
+  const outstanding = orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
+    const ft=Number(o.finalTotal)||Number(o.total)||0;
+    const rec=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);
+    return s+(ft-rec);
+  },0);
+  return(
+    <div style={{background:`linear-gradient(135deg,${NAVY},#1e3a8a)`,borderRadius:14,padding:"14px 18px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+      <div style={{color:"white"}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>☀️ Good morning, {displayName}!</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.75)",display:"flex",gap:16,flexWrap:"wrap"}}>
+          {flagged.length>0&&<span>🚩 {flagged.length} flagged</span>}
+          {upcoming.length>0&&<span>📅 {upcoming.length} upcoming deadline{upcoming.length!==1?"s":""}</span>}
+          {outstanding>0&&<span>💸 {fmt$(outstanding)} outstanding</span>}
+          {flagged.length===0&&upcoming.length===0&&outstanding===0&&<span>✅ Everything looks great today!</span>}
+        </div>
+      </div>
+      <button onClick={onDismiss} style={{background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",color:"white",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Dismiss ×</button>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// V6: UPCOMING DEADLINES SECTION
+// ══════════════════════════════════════════════════════════
+function UpcomingDeadlines({ orders, onEdit }) {
+  const [open, setOpen] = useState(false);
+  const upcoming = orders.filter(o => {
+    if(o.status==="Order Done") return false;
+    const dates = [o.deadline, o.followUpDate].filter(Boolean);
+    return dates.some(d => {
+      const days = (new Date(d) - new Date()) / 864e5;
+      return days >= 0 && days <= 7;
+    });
+  }).sort((a,b) => {
+    const da = Math.min(...[a.deadline,a.followUpDate].filter(Boolean).map(d=>new Date(d).getTime()));
+    const db = Math.min(...[b.deadline,b.followUpDate].filter(Boolean).map(d=>new Date(d).getTime()));
+    return da - db;
+  });
+
+  return(
+    <div style={{background:"white",borderRadius:16,marginBottom:20,boxShadow:"0 4px 16px rgba(0,0,0,0.07)"}}>
+      <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16,transition:"transform .2s",display:"inline-block",transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
+          <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>📅 Upcoming Deadlines</span>
+          {upcoming.length>0&&<span style={{background:upcoming.length>0?"#fef3c7":"#f1f5f9",color:upcoming.length>0?"#92400e":"#94a3b8",fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20}}>{upcoming.length}</span>}
+        </div>
+      </div>
+      {open&&(
+        <div style={{padding:"0 20px 16px"}}>
+          {upcoming.length===0
+            ?<div style={{color:GREEN,fontSize:13,fontWeight:600,padding:"4px 0"}}>✅ No upcoming deadlines this week</div>
+            :upcoming.map(o=>{
+              const d = [o.deadline,o.followUpDate].filter(Boolean).sort()[0];
+              const days = Math.ceil((new Date(d)-new Date())/864e5);
+              return(
+                <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:8,border:"1px solid #f1f5f9"}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:13,color:"#0f172a"}}>{o.customerName}</div>
+                    <div style={{fontSize:11,color:"#64748b",marginTop:2}}>
+                      {o.deadline&&<span>🗓 Deadline: {fmtD(o.deadline)} </span>}
+                      {o.followUpDate&&<span>📞 Follow up: {fmtD(o.followUpDate)}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,fontWeight:700,color:days<=1?RED:days<=3?AMBER:BLUE}}>{days===0?"Today!":days===1?"Tomorrow":`${days} days`}</span>
+                    <button onClick={()=>onEdit(o)} style={{padding:"5px 12px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>View</button>
+                  </div>
+                </div>
+              );
+            })
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// V6: WEEKLY SUMMARY POPUP
+// ══════════════════════════════════════════════════════════
+function WeeklySummary({ orders, onDismiss }) {
+  const now = new Date();
+  const weekAgo = new Date(now - 7*864e5);
+  const weekOrders = orders.filter(o => o.dateCreated && new Date(o.dateCreated) >= weekAgo);
+  const completed = weekOrders.filter(o => o.status === "Order Done");
+  const revenue = weekOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
+  const outstanding = orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
+    const ft=Number(o.finalTotal)||Number(o.total)||0;
+    const rec=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);
+    return s+(ft-rec);
+  },0);
+
+  const exportSummary = () => {
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Weekly Summary</title>
+<style>body{font-family:system-ui,sans-serif;padding:40px;color:#0f172a;max-width:500px;margin:0 auto}h1{color:#0f1f4b;font-size:20px}h2{color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:1px}.card{background:#f8fafc;border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid #e2e8f0}.num{font-size:28px;font-weight:800;color:#5271FF}.label{font-size:12px;color:#64748b;margin-top:4px}</style></head>
+<body><h1>📊 LuxeBound Weekly Summary</h1><h2>Week of ${weekAgo.toLocaleDateString("en-US",{month:"long",day:"numeric"})} — ${now.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</h2>
+<div class="card"><div class="num">${weekOrders.length}</div><div class="label">Orders Created</div></div>
+<div class="card"><div class="num">${completed.length}</div><div class="label">Orders Completed</div></div>
+<div class="card"><div class="num" style="color:#18B978">${fmt$(revenue)}</div><div class="label">Revenue This Week</div></div>
+<div class="card"><div class="num" style="color:#ef4444">${fmt$(outstanding)}</div><div class="label">Total Outstanding Balance</div></div>
+</body></html>`;
+    const w = window.open("","_blank");
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>w.print(),400);
+    onDismiss();
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:16}}>
+      <div style={{background:"white",borderRadius:20,padding:28,width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:18,color:"#0f172a"}}>📊 Weekly Summary</div>
+          <button onClick={onDismiss} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",color:"#94a3b8",padding:0,lineHeight:1}}>×</button>
+        </div>
+        <div style={{fontSize:12,color:"#64748b",marginBottom:20}}>
+          {weekAgo.toLocaleDateString("en-US",{month:"long",day:"numeric"})} — {now.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+          {[
+            {label:"Orders Created",val:weekOrders.length,color:BLUE},
+            {label:"Completed",val:completed.length,color:GREEN},
+            {label:"Revenue",val:fmt$(revenue),color:BLUE},
+            {label:"Outstanding",val:fmt$(outstanding),color:RED},
+          ].map(({label,val,color})=>(
+            <div key={label} style={{background:"#f8fafc",borderRadius:12,padding:14,border:"1px solid #e2e8f0"}}>
+              <div style={{fontSize:22,fontWeight:800,color}}>{val}</div>
+              <div style={{fontSize:11,color:"#64748b",marginTop:4}}>{label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onDismiss} style={{flex:1,padding:"12px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Dismiss</button>
+          <button onClick={exportSummary} style={{flex:2,padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>📄 Export & Print</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
 // EXPORT MODAL
 // ══════════════════════════════════════════════════════════
 function ExportModal({ orders, onClose, th }) {
@@ -578,8 +819,21 @@ function ExportModal({ orders, onClose, th }) {
 // ══════════════════════════════════════════════════════════
 // DASHBOARD  (V4)
 // ══════════════════════════════════════════════════════════
-function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,onQuickStatus,th }) {
+function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,onQuickStatus,invoiceMap,th }) {
   const [filters,setFilters]=useState({search:"",album:"",paid:"",vip:false,priority:false,pinned:false});
+  // V6: Daily digest + weekly summary
+  const [showDigest,setShowDigest]=useState(()=>{
+    const key=`lb_digest_${new Date().toDateString()}`;
+    return !localStorage.getItem(key);
+  });
+  const [showWeekly,setShowWeekly]=useState(()=>{
+    const today=new Date();
+    const isMonday=today.getDay()===1;
+    const key=`lb_weekly_${today.toDateString()}`;
+    return isMonday&&!localStorage.getItem(key);
+  });
+  const dismissDigest=()=>{localStorage.setItem(`lb_digest_${new Date().toDateString()}`,"1");setShowDigest(false);};
+  const dismissWeekly=()=>{localStorage.setItem(`lb_weekly_${new Date().toDateString()}`,"1");setShowWeekly(false);};
   const [ordersOpen,setOrdersOpen]=useState(false);
   const [selectMode,setSelectMode]=useState(false);
   const [selected,setSelected]=useState([]);
@@ -598,7 +852,9 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
   });
 
   // Pinned first, then newest first by dateCreated
-  const sorted=[...filtered].sort((a,b)=>{
+  // V6: Enrich orders with invoice numbers
+  const enriched=filtered.map(o=>({...o,invoiceNum:invoiceMap?.[o.id]||o.invoiceNum||""}));
+  const sorted=[...enriched].sort((a,b)=>{
     if(a.pinned&&!b.pinned) return -1;
     if(!a.pinned&&b.pinned) return 1;
     return (b.dateCreated||"").localeCompare(a.dateCreated||"");
@@ -632,6 +888,8 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
       </div>
 
       <div style={{padding:"28px 32px",maxWidth:1200,margin:"0 auto"}}>
+        {showDigest&&<DailyDigest orders={orders} onDismiss={dismissDigest} displayName={currentUser?.displayName||currentUser?.email?.split("@")[0]||"User"}/>}
+        {showWeekly&&<WeeklySummary orders={orders} onDismiss={dismissWeekly}/>}
         <StatCards orders={orders} onFilterUnpaid={filterUnpaid}/>
         <Pipeline orders={orders} statusFilter={statusFilter} setStatusFilter={setStatusFilter}/>
         <FlagsSection orders={orders} onEdit={onEdit} onSnooze={onSnooze}/>
@@ -675,7 +933,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
                       <input type="checkbox" checked={selected.includes(o.id)} onChange={()=>toggleSelect(o.id)} style={{marginTop:20,width:18,height:18,accentColor:BLUE,flexShrink:0,cursor:"pointer"}}/>
                     )}
                     <div style={{flex:1}}>
-                      <OrderCard order={o} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onQuickStatus={onQuickStatus}/>
+                      <OrderCard order={{...o,invoiceNum:invoiceMap?.[o.id]||o.invoiceNum||""}} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onQuickStatus={onQuickStatus}/>
                     </div>
                   </div>
                 ))
@@ -728,7 +986,7 @@ function generateInvoice(order) {
   @media print{body{padding:20px}}
 </style></head><body>
 <div class="hdr">
-  <div><h1>LuxeBound Albums</h1><p>The Art of Album Making</p></div>
+  <div>${order._companyLogo?`<img src="${order._companyLogo}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;margin-bottom:6px;display:block"/>`:""}<h1>${order._companyName||"LuxeBound Albums"}</h1><p>${order._companyTagline||"The Art of Album Making"}</p>${order._companyPhone?`<p style="font-size:12px;color:#64748b">${order._companyPhone}</p>`:""}</div>
   <div class="inv"><strong>INVOICE</strong>${order.invoiceNum?`<span>${order.invoiceNum}</span>`:""}<br/>Date: ${fmtD(order.dateCreated)}</div>
 </div>
 <div class="cust"><h3>Bill To</h3><p><strong>${order.customerName||""}</strong></p><p>${order.phone||""}</p>${order.email?`<p>${order.email}</p>`:""}</div>
@@ -800,7 +1058,7 @@ function SmartReminder({ order, th }) {
   );
 }
 
-function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, customers, onSaveCustomer, sources, th }) {
+function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, customers, onSaveCustomer, sources, companyProfile, th }) {
   const isEdit=!!order?.id;
   const [customerName,setCustomerName]=useState(order?.customerName||"");
   const [phone,setPhone]=useState(order?.phone||"");
@@ -819,6 +1077,8 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   const [paymentDueDate,setPaymentDueDate]=useState(order?.paymentDueDate||"");
   const [refunded,setRefunded]=useState(order?.refunded||false);
   const [refundAmount,setRefundAmount]=useState(order?.refundAmount||"");
+  // V6: Follow-up date
+  const [followUpDate,setFollowUpDate]=useState(order?.followUpDate||"");
   const [nameAC,setNameAC]=useState([]); // autocomplete suggestions
 
   const initAlbums=order?.selectedAlbums||(order?.albumType?[{id:uid(),albumType:order.albumType,albumPrice:order.albumPrice||0}]:[{id:uid(),albumType:"",albumPrice:0}]);
@@ -920,6 +1180,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         payments:payments.filter(p=>p.amount),
         paymentDueDate:paymentDueDate||"",
         refunded,refundAmount:refunded?Number(refundAmount)||0:0,
+        followUpDate:followUpDate||"",
         selectedAlbums:selAlbums,albumType:selAlbums[0]?.albumType||"",albumPrice:selAlbums[0]?.albumPrice||0,
         selectedUpgrades:selUpg,upgradeNames,upgradePrices,
         total:subtotal,discountType:discType,discountValue:Number(discVal)||0,finalTotal,
@@ -973,6 +1234,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
             </Field>
             <Field label="Date Created" style={{gridColumn:"1/-1"}}>
               <input type="date" value={dateCreated} onChange={e=>setDateCreated(e.target.value)} style={inp}/>
+              {dateCreated&&<div style={{fontSize:11,color:"#8b5cf6",marginTop:3}}>{toHebrewDate(dateCreated)}</div>}
             </Field>
             {/* VIP + Priority toggles */}
             <div style={{gridColumn:"1/-1",display:"flex",gap:12,flexWrap:"wrap"}}>
@@ -1056,7 +1318,12 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         </div>
 
         {(znoCost!==""||dateSentZno||STATUSES.indexOf(status)>=STATUSES.indexOf("Ordered"))&&(
-          <div style={{...sec,marginBottom:14}}><Field label="Date Sent to Zno"><input type="date" value={dateSentZno} onChange={e=>setDateSentZno(e.target.value)} style={inp}/></Field></div>
+          <div style={{...sec,marginBottom:14}}>
+            <Field label="Date Sent to Zno">
+              <input type="date" value={dateSentZno} onChange={e=>setDateSentZno(e.target.value)} style={inp}/>
+              {dateSentZno&&<div style={{fontSize:11,color:"#8b5cf6",marginTop:3}}>{toHebrewDate(dateSentZno)}</div>}
+            </Field>
+          </div>
         )}
 
         {/* Deadline */}
@@ -1085,6 +1352,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
           </div>
           <Field label="Payment Due Date (Optional)" style={{marginBottom:14}}>
             <input type="date" value={paymentDueDate} onChange={e=>setPaymentDueDate(e.target.value)} style={inp}/>
+            {paymentDueDate&&<div style={{fontSize:11,color:"#8b5cf6",marginTop:3}}>{toHebrewDate(paymentDueDate)}</div>}
           </Field>
           <Field label="Status">
             <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:4}}>
@@ -1187,7 +1455,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         {/* Invoice button - edit only */}
         {isEdit&&(
           <div style={{marginBottom:14}}>
-            <button onClick={()=>generateInvoice({...order,customerName,finalTotal,payments,paymentDueDate,selectedAlbums:selAlbums,selectedUpgrades:selUpg,upgradeNames:Object.fromEntries(upgrades.map(u=>[u.id,u.name])),upgradePrices:Object.fromEntries(upgrades.map(u=>[u.id,u.price]))})}
+            <button onClick={()=>generateInvoice({...order,customerName,finalTotal,payments,paymentDueDate,selectedAlbums:selAlbums,selectedUpgrades:selUpg,upgradeNames:Object.fromEntries(upgrades.map(u=>[u.id,u.name])),upgradePrices:Object.fromEntries(upgrades.map(u=>[u.id,u.price])),_companyName:companyProfile?.name,_companyTagline:companyProfile?.tagline,_companyPhone:companyProfile?.phone,_companyLogo:companyProfile?.logo})}
               style={{width:"100%",padding:"12px",borderRadius:10,border:`1.5px solid ${NAVY}`,background:"white",color:NAVY,cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               📄 Generate Invoice{order.invoiceNum?` (${order.invoiceNum})`:""}
             </button>
@@ -1325,10 +1593,16 @@ function UsersTab({users,onSave,th}){
   );
 }
 
-// Business Insights Tab (V5: monthly chart, heatmap, avg time per status)
+// Business Insights Tab (V6: adds best upgrade, profit by album, customer ranking, year vs year, goal tracker)
 function InsightsTab({ orders, th }) {
   const total=orders.length;
   const [chartYear,setChartYear]=useState(new Date().getFullYear());
+  const [monthlyGoal,setMonthlyGoal]=useState(()=>Number(localStorage.getItem("lb_monthly_goal")||0));
+  const [yearlyGoal,setYearlyGoal]=useState(()=>Number(localStorage.getItem("lb_yearly_goal")||0));
+  const [editGoal,setEditGoal]=useState(false);
+  const [tmpMonthly,setTmpMonthly]=useState("");
+  const [tmpYearly,setTmpYearly]=useState("");
+
   if(!total) return <div style={{color:th.subtext,fontSize:14,textAlign:"center",padding:"40px 0"}}>No orders yet to analyze.</div>;
 
   const revenue=orders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
@@ -1339,14 +1613,52 @@ function InsightsTab({ orders, th }) {
   const returning=Object.values(returnCust).filter(c=>c>1).length;
   const totalCust=Object.keys(returnCust).length;
   const returnRate=totalCust>0?Math.round((returning/totalCust)*100):0;
-  const byAlbum=orders.reduce((acc,o)=>{(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType).filter(Boolean).forEach(n=>{acc[n]=(acc[n]||0)+1;});return acc;},{});
-  const topAlbum=Object.entries(byAlbum).sort((a,b)=>b[1]-a[1])[0];
   const outstanding=orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
-    const ft=Number(o.finalTotal)||0;
-    const rec=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);
-    return s+(ft-rec);
+    const ft=Number(o.finalTotal)||0;const rec=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);return s+(ft-rec);
   },0);
 
+  // Best selling upgrade (#21)
+  const byUpgrade=orders.reduce((acc,o)=>{
+    Object.entries(o.selectedUpgrades||{}).filter(([,q])=>Number(q)>0).forEach(([id])=>{
+      const name=(o.upgradeNames||{})[id]||id;
+      acc[name]=(acc[name]||0)+1;
+    });
+    return acc;
+  },{});
+  const topUpgrades=Object.entries(byUpgrade).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Profit margin by album type (#22)
+  const byAlbumData=orders.reduce((acc,o)=>{
+    (o.selectedAlbums||[{albumType:o.albumType,albumPrice:o.albumPrice}]).filter(a=>a.albumType).forEach(a=>{
+      if(!acc[a.albumType])acc[a.albumType]={revenue:0,zno:0,count:0};
+      acc[a.albumType].revenue+=Number(a.albumPrice)||0;
+      acc[a.albumType].zno+=Number(o.znoCost)||0;
+      acc[a.albumType].count++;
+    });
+    return acc;
+  },{});
+
+  // Orders per customer ranking (#23)
+  const custRanking=Object.entries(
+    orders.reduce((acc,o)=>{
+      const n=o.customerName||"Unknown";
+      if(!acc[n])acc[n]={count:0,revenue:0};
+      acc[n].count++;
+      acc[n].revenue+=Number(o.finalTotal)||Number(o.total)||0;
+      return acc;
+    },{})
+  ).sort((a,b)=>b[1].count-a[1].count).slice(0,5);
+
+  // Year vs year (#25)
+  const thisYear=new Date().getFullYear();
+  const lastYear=thisYear-1;
+  const thisYearOrders=orders.filter(o=>(o.dateCreated||"").startsWith(String(thisYear)));
+  const lastYearOrders=orders.filter(o=>(o.dateCreated||"").startsWith(String(lastYear)));
+  const thisYearRev=thisYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
+  const lastYearRev=lastYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
+  const revChange=lastYearRev>0?Math.round(((thisYearRev-lastYearRev)/lastYearRev)*100):0;
+
+  // Monthly revenue chart
   const years=[...new Set(orders.map(o=>(o.dateCreated||"").slice(0,4)).filter(Boolean))].sort().reverse();
   const monthlyData=Array.from({length:12},(_,i)=>{
     const mo=String(i+1).padStart(2,"0");
@@ -1355,6 +1667,7 @@ function InsightsTab({ orders, th }) {
   });
   const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
 
+  // Heatmap
   const heatData=Array.from({length:12},(_,i)=>{
     const mo=String(i+1).padStart(2,"0");
     const all=orders.filter(o=>(o.dateCreated||"").slice(5,7)===mo);
@@ -1362,11 +1675,21 @@ function InsightsTab({ orders, th }) {
   });
   const maxCount=Math.max(...heatData.map(h=>h.count),1);
 
+  // Avg time per status
   const statusTimes=STATUSES.slice(0,-1).map(s=>{
     const rel=orders.filter(o=>o.status===s&&o.statusChangedAt);
     const avg=rel.length>0?rel.reduce((sum,o)=>sum+daysSince(o.statusChangedAt),0)/rel.length:0;
     return{status:s,avg:Math.round(avg*10)/10,count:rel.length};
   });
+
+  // Goal tracker (#27)
+  const thisMonthKey=new Date().toISOString().slice(0,7);
+  const thisMonthRev=orders.filter(o=>(o.dateCreated||"").startsWith(thisMonthKey)&&!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
+  const saveGoals=()=>{
+    if(tmpMonthly) {localStorage.setItem("lb_monthly_goal",tmpMonthly);setMonthlyGoal(Number(tmpMonthly));}
+    if(tmpYearly)  {localStorage.setItem("lb_yearly_goal",tmpYearly);setYearlyGoal(Number(tmpYearly));}
+    setEditGoal(false);
+  };
 
   const card=(icon,label,val,sub)=>(
     <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
@@ -1377,15 +1700,85 @@ function InsightsTab({ orders, th }) {
     </div>
   );
 
+  const ProgressBar=({current,goal,color})=>{
+    const pct=goal>0?Math.min(100,Math.round((current/goal)*100)):0;
+    return(
+      <div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+          <span style={{color:th.subtext}}>{fmt$(current)} of {fmt$(goal)}</span>
+          <span style={{fontWeight:700,color}}>{pct}%</span>
+        </div>
+        <div style={{height:8,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
+          <div style={{height:8,width:`${pct}%`,background:color,borderRadius:4,transition:"width .4s"}}/>
+        </div>
+      </div>
+    );
+  };
+
   return(
     <div>
+      {/* Summary cards */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
         {card("📦","Total Orders",total,`${paidCount} paid · ${total-paidCount} unpaid`)}
         {card("💰","Avg Order Value",fmt$(avgVal),`Total revenue: ${fmt$(revenue)}`)}
         {card("🔁","Return Rate",`${returnRate}%`,`${returning} of ${totalCust} customers returned`)}
-        {card("🏆","Top Album",topAlbum?topAlbum[0]:"—",topAlbum?`${topAlbum[1]} orders`:"")}
         {card("✅","Completed",done.length,`${total>0?Math.round((done.length/total)*100):0}% completion rate`)}
         {card("💸","Outstanding",fmt$(outstanding),`${orders.filter(o=>!o.paid&&o.status!=="Order Done").length} unpaid orders`)}
+        {card("📅","This Year vs Last",`${revChange>=0?"+":""}${revChange}%`,`${fmt$(thisYearRev)} vs ${fmt$(lastYearRev)}`)}
+      </div>
+
+      {/* Goal Tracker (#27) */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:14,color:th.text}}>🎯 Revenue Goals</div>
+          <button onClick={()=>{setTmpMonthly(monthlyGoal||"");setTmpYearly(yearlyGoal||"");setEditGoal(e=>!e);}} style={{padding:"5px 12px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>{editGoal?"Cancel":"Set Goals"}</button>
+        </div>
+        {editGoal?(
+          <div style={{display:"flex",gap:10,marginBottom:14}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:th.subtext,marginBottom:4,fontWeight:600,textTransform:"uppercase"}}>Monthly Goal $</div>
+              <input type="number" value={tmpMonthly} onChange={e=>setTmpMonthly(e.target.value)} placeholder="e.g. 5000" style={{...{width:"100%",padding:"9px 12px",borderRadius:8,border:`1.5px solid #e2e8f0`,background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:th.subtext,marginBottom:4,fontWeight:600,textTransform:"uppercase"}}>Yearly Goal $</div>
+              <input type="number" value={tmpYearly} onChange={e=>setTmpYearly(e.target.value)} placeholder="e.g. 60000" style={{...{width:"100%",padding:"9px 12px",borderRadius:8,border:`1.5px solid #e2e8f0`,background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}}/>
+            </div>
+            <div style={{display:"flex",alignItems:"flex-end"}}>
+              <button onClick={saveGoals} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Save</button>
+            </div>
+          </div>
+        ):null}
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:6}}>📅 This Month</div>
+            {monthlyGoal>0?<ProgressBar current={thisMonthRev} goal={monthlyGoal} color={BLUE}/>:<div style={{fontSize:12,color:th.subtext}}>No monthly goal set. Tap "Set Goals" to add one.</div>}
+          </div>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:6}}>📆 This Year</div>
+            {yearlyGoal>0?<ProgressBar current={thisYearRev} goal={yearlyGoal} color={GREEN}/>:<div style={{fontSize:12,color:th.subtext}}>No yearly goal set. Tap "Set Goals" to add one.</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* Year vs Year (#25) */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📅 Year vs Year</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+          {[
+            {label:"Revenue",this:fmt$(thisYearRev),last:fmt$(lastYearRev),pct:revChange},
+            {label:"Orders",this:thisYearOrders.length,last:lastYearOrders.length,pct:lastYearOrders.length>0?Math.round(((thisYearOrders.length-lastYearOrders.length)/lastYearOrders.length)*100):0},
+            {label:"Profit",this:fmt$(thisYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0)-(Number(o.znoCost)||0),0)),last:fmt$(lastYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0)-(Number(o.znoCost)||0),0)),pct:0},
+          ].map(item=>(
+            <div key={item.label} style={{background:"#f8fafc",borderRadius:10,padding:12,textAlign:"center"}}>
+              <div style={{fontSize:11,color:th.subtext,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>{item.label}</div>
+              <div style={{fontSize:16,fontWeight:800,color:BLUE}}>{item.this}</div>
+              <div style={{fontSize:11,color:th.subtext,marginTop:2}}>{thisYear}</div>
+              <div style={{fontSize:13,fontWeight:600,color:"#64748b",marginTop:4}}>{item.last}</div>
+              <div style={{fontSize:10,color:th.subtext}}>{lastYear}</div>
+              {item.pct!==0&&<div style={{fontSize:11,fontWeight:700,color:item.pct>=0?GREEN:RED,marginTop:4}}>{item.pct>=0?"+":""}{item.pct}%</div>}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Monthly Revenue Chart */}
@@ -1425,6 +1818,61 @@ function InsightsTab({ orders, th }) {
             );
           })}
         </div>
+      </div>
+
+      {/* Best Selling Upgrades (#21) */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>🏆 Best Selling Upgrades</div>
+        {topUpgrades.length===0?<div style={{color:th.subtext,fontSize:13}}>No upgrade data yet.</div>:topUpgrades.map(([name,count],i)=>(
+          <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<topUpgrades.length-1?"1px solid #f1f5f9":"none"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:13,fontWeight:700,color:BLUE,minWidth:20}}>#{i+1}</span>
+              <span style={{fontSize:13,color:th.text}}>{name}</span>
+            </div>
+            <span style={{fontSize:13,fontWeight:700,color:th.subtext}}>{count} orders</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Profit Margin by Album (#22) */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>💰 Profit Margin by Album</div>
+        {Object.entries(byAlbumData).map(([name,data])=>{
+          const margin=data.revenue>0?Math.round(((data.revenue-data.zno)/data.revenue)*100):0;
+          return(
+            <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}>
+              <div>
+                <div style={{fontSize:13,color:th.text,fontWeight:600}}>{name}</div>
+                <div style={{fontSize:11,color:th.subtext}}>{data.count} orders · {fmt$(data.revenue)} revenue</div>
+              </div>
+              <span style={{fontSize:15,fontWeight:800,color:margin>=50?GREEN:margin>=30?AMBER:RED}}>{margin}%</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Top Customers (#23) */}
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>👑 Top Customers</div>
+        {custRanking.map(([name,data],i)=>(
+          <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<custRanking.length-1?"1px solid #f1f5f9":"none"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:13,fontWeight:700,color:BLUE,minWidth:20}}>#{i+1}</span>
+              <span style={{fontSize:13,color:th.text}}>{name}</span>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:13,fontWeight:700,color:BLUE}}>{fmt$(data.revenue)}</div>
+              <div style={{fontSize:11,color:th.subtext}}>{data.count} order{data.count!==1?"s":""}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Unpaid Orders Total (#24) */}
+      <div style={{background:"#fef2f2",borderRadius:12,padding:16,border:"1px solid #fecaca",marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,color:RED,marginBottom:8}}>💸 Unpaid Orders</div>
+        <div style={{fontSize:26,fontWeight:800,color:RED}}>{fmt$(outstanding)}</div>
+        <div style={{fontSize:12,color:"#64748b",marginTop:4}}>{orders.filter(o=>!o.paid&&o.status!=="Order Done").length} unpaid orders outstanding</div>
       </div>
 
       {/* Average Time Per Status */}
@@ -1637,7 +2085,207 @@ function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) 
 }
 
 
-function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,darkMode,onToggleDark,th}){
+// ══════════════════════════════════════════════════════════
+// V6: COMPANY PROFILE TAB
+// ══════════════════════════════════════════════════════════
+function CompanyProfileTab({ profile, onSave, th }) {
+  const [name,setName]=useState(profile?.name||"LuxeBound Albums");
+  const [tagline,setTagline]=useState(profile?.tagline||"The Art of Album Making");
+  const [phone,setPhone]=useState(profile?.phone||"");
+  const [email,setEmail]=useState(profile?.email||"");
+  const [address,setAddress]=useState(profile?.address||"");
+  const [website,setWebsite]=useState(profile?.website||"");
+  const [logo,setLogo]=useState(profile?.logo||null);
+  const [saved,setSaved]=useState(false);
+  const inp=iStyle(th);
+
+  const handleLogoChange=async(e)=>{
+    const file=e.target.files?.[0];if(!file)return;e.target.value="";
+    const img=new Image();const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const MAX=400;const scale=Math.min(1,MAX/Math.max(img.width,img.height));
+      const w=Math.round(img.width*scale);const h=Math.round(img.height*scale);
+      const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      setLogo(canvas.toDataURL("image/jpeg",0.8));
+    };img.src=url;
+  };
+
+  const handleSave=()=>{
+    onSave({name,tagline,phone,email,address,website,logo});
+    setSaved(true);setTimeout(()=>setSaved(false),2000);
+  };
+
+  return(
+    <div>
+      <div style={{background:th.card,borderRadius:12,padding:20,border:`1px solid ${th.border}`,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>Company Logo</div>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          {logo
+            ?<img src={logo} alt="logo" style={{width:72,height:72,borderRadius:"50%",objectFit:"cover",border:"2px solid #e2e8f0"}}/>
+            :<div style={{width:72,height:72,borderRadius:"50%",background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,border:"2px solid #e2e8f0"}}>🏢</div>
+          }
+          <div>
+            <label style={{display:"inline-block",padding:"9px 18px",borderRadius:8,background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",marginBottom:6}}>
+              📷 Upload Logo<input type="file" accept="image/*" onChange={handleLogoChange} style={{display:"none"}}/>
+            </label>
+            <div style={{fontSize:11,color:th.subtext,marginTop:4}}>This logo appears on the login screen and all invoices.</div>
+            {logo&&<button onClick={()=>setLogo(null)} style={{display:"block",marginTop:6,background:"none",border:"none",color:RED,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif",padding:0}}>Remove logo</button>}
+          </div>
+        </div>
+      </div>
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>Company Information</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>Company Name</label>
+            <input value={name} onChange={e=>setName(e.target.value)} style={{...inp,fontSize:13}}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>Tagline</label>
+            <input value={tagline} onChange={e=>setTagline(e.target.value)} style={{...inp,fontSize:13}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>Phone</label>
+              <input value={phone} onChange={e=>setPhone(e.target.value)} style={{...inp,fontSize:13}}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>Email</label>
+              <input value={email} onChange={e=>setEmail(e.target.value)} style={{...inp,fontSize:13}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>Address</label>
+            <input value={address} onChange={e=>setAddress(e.target.value)} style={{...inp,fontSize:13}}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>Website</label>
+            <input value={website} onChange={e=>setWebsite(e.target.value)} style={{...inp,fontSize:13}}/>
+          </div>
+        </div>
+      </div>
+      <button onClick={handleSave} style={{width:"100%",padding:"13px",borderRadius:10,border:"none",background:saved?GREEN:BLUE,color:"white",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif",transition:"background .2s"}}>
+        {saved?"✅ Saved!":"💾 Save Company Profile"}
+      </button>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// V6: BACKUP & RESTORE TAB
+// ══════════════════════════════════════════════════════════
+function BackupTab({ orders, customers, albums, upgrades, paymentMethods, users, sources, customerTags, onRestore, th }) {
+  const [restoring,setRestoring]=useState(false);
+  const [msg,setMsg]=useState("");
+
+  const doBackup=()=>{
+    const data={orders,customers,config:{albums,upgrades,paymentMethods,users,sources,customerTags},exportedAt:new Date().toISOString(),version:"5.1"};
+    const json=JSON.stringify(data,null,2);
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([json],{type:"application/json"}));
+    a.download=`LuxeBound_Backup_${todayStr()}.json`;
+    a.click();
+    setMsg("✅ Backup downloaded!");
+    setTimeout(()=>setMsg(""),3000);
+  };
+
+  const doRestore=async(e)=>{
+    const file=e.target.files?.[0];if(!file)return;
+    e.target.value="";
+    setRestoring(true);setMsg("");
+    try{
+      const text=await file.text();
+      const data=JSON.parse(text);
+      if(!data.orders||!data.config){setMsg("❌ Invalid backup file.");setRestoring(false);return;}
+      if(window.confirm(`This will restore ${data.orders.length} orders and overwrite current data. Are you sure?`)){
+        await onRestore(data);
+        setMsg("✅ Restore complete!");
+      }
+    }catch{setMsg("❌ Failed to read backup file.");}
+    setRestoring(false);
+  };
+
+  return(
+    <div>
+      <div style={{background:th.card,borderRadius:12,padding:20,border:`1px solid ${th.border}`,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:8}}>💾 Backup Database</div>
+        <div style={{fontSize:13,color:th.subtext,marginBottom:14}}>Download a complete backup of all your orders, customers, and settings as a JSON file. Keep it somewhere safe!</div>
+        <button onClick={doBackup} style={{width:"100%",padding:"13px",borderRadius:10,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>
+          💾 Download Backup ({orders.length} orders)
+        </button>
+      </div>
+      <div style={{background:th.card,borderRadius:12,padding:20,border:`1px solid ${th.border}`,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:8}}>📂 Restore from Backup</div>
+        <div style={{fontSize:13,color:th.subtext,marginBottom:14}}>Upload a backup JSON file to restore your data. ⚠️ This will overwrite all current data!</div>
+        <label style={{display:"block",width:"100%",padding:"13px",borderRadius:10,border:`2px dashed ${RED}`,background:"#fef2f2",color:RED,cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif",textAlign:"center",boxSizing:"border-box"}}>
+          {restoring?"Restoring…":"📂 Choose Backup File"}
+          <input type="file" accept=".json" onChange={doRestore} style={{display:"none"}} disabled={restoring}/>
+        </label>
+      </div>
+      {msg&&<div style={{padding:"12px 16px",borderRadius:10,background:msg.startsWith("✅")?"#f0fdf4":"#fef2f2",color:msg.startsWith("✅")?GREEN:RED,fontSize:13,fontWeight:600}}>{msg}</div>}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// V6: KEYBOARD SHORTCUTS TAB
+// ══════════════════════════════════════════════════════════
+const DEFAULT_SHORTCUTS = [
+  {id:"s1",key:"n",action:"New Order",description:"Open new order form"},
+  {id:"s2",key:"s",action:"Settings",description:"Open settings"},
+  {id:"s3",key:"f",action:"Search",description:"Focus search box"},
+  {id:"s4",key:"Escape",action:"Go Back",description:"Go back / cancel"},
+  {id:"s5",key:"e",action:"Export",description:"Open export modal"},
+];
+
+function KeyboardShortcutsTab({ th }) {
+  const [shortcuts,setShortcuts]=useState(()=>{
+    try{const s=localStorage.getItem("lb_shortcuts");return s?JSON.parse(s):DEFAULT_SHORTCUTS;}catch{return DEFAULT_SHORTCUTS;}
+  });
+  const [newKey,setNewKey]=useState("");
+  const [newAction,setNewAction]=useState("");
+  const inp=iStyle(th);
+
+  const ACTIONS=["New Order","Settings","Search","Go Back","Export","Dashboard","Bulk Select"];
+
+  const save=updated=>{setShortcuts(updated);localStorage.setItem("lb_shortcuts",JSON.stringify(updated));};
+  const remove=id=>save(shortcuts.filter(s=>s.id!==id));
+  const add=()=>{
+    if(!newKey.trim()||!newAction)return;
+    save([...shortcuts,{id:uid(),key:newKey.trim(),action:newAction,description:""}]);
+    setNewKey("");setNewAction("");
+  };
+
+  return(
+    <div>
+      <div style={{fontSize:13,color:th.subtext,marginBottom:14}}>These keyboard shortcuts work anywhere in the app. Press the key to trigger the action.</div>
+      {shortcuts.map(s=>(
+        <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:th.card,borderRadius:10,padding:"12px 14px",border:`1px solid ${th.border}`}}>
+          <div style={{background:NAVY,color:"white",fontFamily:"monospace",fontWeight:700,fontSize:13,padding:"4px 10px",borderRadius:6,minWidth:40,textAlign:"center"}}>{s.key}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:600,color:th.text}}>{s.action}</div>
+            {s.description&&<div style={{fontSize:11,color:th.subtext}}>{s.description}</div>}
+          </div>
+          <button onClick={()=>remove(s.id)} style={{background:"none",border:"none",color:RED,cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}}>×</button>
+        </div>
+      ))}
+      <div style={{display:"flex",gap:8,marginTop:16,alignItems:"center"}}>
+        <input value={newKey} onChange={e=>setNewKey(e.target.value)} placeholder="Key (e.g. n)" maxLength={10} style={{...inp,width:80,padding:"9px 12px",fontSize:13}}/>
+        <select value={newAction} onChange={e=>setNewAction(e.target.value)} style={{...inp,flex:1,fontSize:13}}>
+          <option value="">Select action…</option>
+          {ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}
+        </select>
+        <button onClick={add} style={{padding:"9px 16px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button>
+      </div>
+      <button onClick={()=>save(DEFAULT_SHORTCUTS)} style={{marginTop:12,padding:"8px 16px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Reset to Defaults</button>
+    </div>
+  );
+}
+
+
+function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,darkMode,onToggleDark,lang,onToggleLang,th}){
   const [displayName,setDisplayName]=useState(currentUser?.displayName||"");
   const [dnSaved,setDnSaved]=useState(false);
   const [cur,setCur]=useState(""); const [newPw,setNew]=useState(""); const [conf,setConf]=useState("");
@@ -1736,7 +2384,7 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,da
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
     {id:"albums",icon:"📚",label:"Albums",desc:"Manage album types & prices"},
@@ -1746,8 +2394,13 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     {id:"customers",icon:"👥",label:"Customers",desc:"Customer database & history"},
     {id:"insights",icon:"📊",label:"Business Insights",desc:"Revenue, trends & analytics"},
     {id:"trash",icon:"🗑️",label:"Trash",desc:`${(trash||[]).length} deleted order${(trash||[]).length!==1?"s":""}`},
-    ...(isAdmin?[{id:"users",icon:"🔑",label:"Users",desc:"Manage user accounts"}]:[]),
-    {id:"account",icon:"🙋",label:"My Account",desc:"Password & display settings"},
+    ...(isAdmin?[
+      {id:"company",icon:"🏢",label:"Company Profile",desc:"Logo, name, contact info for invoices"},
+      {id:"backup",icon:"💾",label:"Backup & Restore",desc:"Download or restore your data"},
+      {id:"users",icon:"🔑",label:"Users",desc:"Manage user accounts"},
+    ]:[]),
+    {id:"shortcuts",icon:"⌨️",label:"Keyboard Shortcuts",desc:"Customize keyboard shortcuts"},
+    {id:"account",icon:"🙋",label:"My Account",desc:"Password, language & display settings"},
   ];
   if(activeTab){
     const tab=tabs.find(t=>t.id===activeTab);
@@ -1757,11 +2410,15 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
         case "upgrades":  return <ListEditor items={upgrades} onSave={onSaveUpgrades} th={th} placeholder="Upgrade name"/>;
         case "payments":  return <PaymentsTab paymentMethods={paymentMethods} onSave={onSavePayments} th={th}/>;
         case "users":     return <UsersTab users={users} onSave={onSaveUsers} th={th}/>;
-        case "account":   return <AccountTab currentUser={currentUser} onChangePw={onChangePw} onUpdateDisplayName={onUpdateDisplayName} onUpdatePhoto={onUpdatePhoto} darkMode={darkMode} onToggleDark={onToggleDark} th={th}/>;
+
         case "insights":  return <InsightsTab orders={orders} th={th}/>;
         case "customers": return <CustomersTab customers={customers} onSave={onSaveCustomer} orders={orders} sources={sources} customerTags={customerTags} th={th}/>;
         case "lists":     return <ListsTagsTab sources={sources} onSaveSources={onSaveSources} customerTags={customerTags} onSaveCustomerTags={onSaveCustomerTags} th={th}/>;
         case "trash":     return <TrashTab trash={trash} onRestore={onRestoreOrder} onDeletePermanent={onDeletePermanent} th={th}/>;
+        case "company":   return <CompanyProfileTab profile={companyProfile} onSave={onSaveCompanyProfile} th={th}/>;
+        case "backup":    return <BackupTab orders={orders} customers={customers} albums={albums} upgrades={upgrades} paymentMethods={paymentMethods} users={users} sources={sources} customerTags={customerTags} onRestore={onRestoreBackup} th={th}/>;
+        case "shortcuts": return <KeyboardShortcutsTab th={th}/>;
+        case "account":   return <AccountTab currentUser={currentUser} onChangePw={onChangePw} onUpdateDisplayName={onUpdateDisplayName} onUpdatePhoto={onUpdatePhoto} darkMode={darkMode} onToggleDark={onToggleDark} lang={lang} onToggleLang={onToggleLang} th={th}/>;
         default: return null;
       }
     };
@@ -1809,7 +2466,10 @@ export default function App() {
   const [trash,setTrash]=useState([]);
   const [sources,setSources]=useState(DEFAULT_SOURCES);
   const [customerTags,setCustomerTags]=useState([]);
+  const [companyProfile,setCompanyProfile]=useState(null);
+  const [lang,setLang]=useState(()=>lsGet("lb_lang")||"en");
   const [darkMode,setDarkMode]=useState(false);
+  const [invoiceMap,setInvoiceMap]=useState({});
   const [editingOrder,setEditingOrder]=useState(null);
   const [statusFilter,setStatusFilter]=useState(null);
   const [settingsTab,setSettingsTab]=useState(null);
@@ -1835,6 +2495,11 @@ export default function App() {
     setReady(true);
     return()=>unsubs.forEach(u=>u());
   },[]);
+
+  // V6: Auto-assign invoice numbers sorted by date
+  useEffect(()=>{
+    if(orders.length>0) setInvoiceMap(assignInvoiceNumbers(orders));
+  },[orders]);
 
   // V5: Auto-cleanup trash older than 30 days
   useEffect(()=>{
@@ -1934,6 +2599,29 @@ export default function App() {
   const signOut=()=>{setCurrentUser(null);lsSet("lb_user",null);};
   const togDark=()=>{const d=!darkMode;setDarkMode(d);lsSet("lb_dark",d);};
 
+  // V6: Keyboard shortcuts
+  useEffect(()=>{
+    const handleKey=(e)=>{
+      if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT") return;
+      try{
+        const shortcuts=JSON.parse(localStorage.getItem("lb_shortcuts")||"[]");
+        const match=shortcuts.find(s=>s.key===e.key);
+        if(!match) return;
+        e.preventDefault();
+        switch(match.action){
+          case "New Order": setEditingOrder(null);setView("newOrder"); break;
+          case "Settings": setView("settings"); break;
+          case "Export": setShowExport(true); break;
+          case "Go Back": setView("dashboard");setEditingOrder(null); break;
+          case "Dashboard": setView("dashboard"); break;
+          default: break;
+        }
+      }catch{}
+    };
+    window.addEventListener("keydown",handleKey);
+    return()=>window.removeEventListener("keydown",handleKey);
+  },[]);
+
   if(!ready) return <Loader/>;
   if(!currentUser) return <LoginScreen users={users} onLogin={login}/>;
 
@@ -1943,7 +2631,7 @@ export default function App() {
       onSave={saveOrder} onDelete={deleteOrder}
       onCancel={()=>{setView("dashboard");setEditingOrder(null);}}
       currentUser={currentUser} customers={customers} onSaveCustomer={saveCustomer}
-      sources={sources} th={theme}/>
+      sources={sources} companyProfile={companyProfile} th={theme}/>
   );
 
   if(view==="settings") return(
@@ -1957,6 +2645,9 @@ export default function App() {
       sources={sources}         onSaveSources={saveSources}
       customerTags={customerTags} onSaveCustomerTags={saveCustomerTags}
       trash={trash}             onRestoreOrder={restoreOrder} onDeletePermanent={deletePermanent}
+      companyProfile={companyProfile} onSaveCompanyProfile={saveCompanyProfile}
+      onRestoreBackup={restoreBackup}
+      lang={lang}               onToggleLang={togLang}
       darkMode={darkMode}       onToggleDark={togDark}
       onChangePw={changePw}     onUpdateDisplayName={updateDisplayName} onUpdatePhoto={updatePhoto}
       onBack={()=>{setView("dashboard");setSettingsTab(null);}}
@@ -1975,6 +2666,7 @@ export default function App() {
       onQuickStatus={quickStatus}
       onSnooze={snoozeOrder}
       onBulkStatus={bulkStatus}
+      invoiceMap={invoiceMap}
       onSettings={()=>setView("settings")}
       onSignOut={signOut}
       showExport={showExport} setShowExport={setShowExport}
