@@ -2591,6 +2591,23 @@ export default function App() {
 
   const saveSources=async(items)=>await saveConfig("sources",items);
   const saveCustomerTags=async(items)=>await saveConfig("customerTags",items);
+  const togLang=l=>{setLang(l);lsSet("lb_lang",l);};
+  const saveCompanyProfile=async(profile)=>{
+    await setDoc(doc(db,"config","companyProfile"),clean(profile));
+    setCompanyProfile(profile);
+  };
+  const restoreBackup=async(data)=>{
+    for(const o of (data.orders||[])){const{id,...rest}=o;await setDoc(doc(db,"orders",id),clean(rest));}
+    for(const c of (data.customers||[])){const{id,...rest}=c;await setDoc(doc(db,"customers",id),clean(rest));}
+    if(data.config){
+      const cfg=data.config;
+      if(cfg.albums)    await saveConfig("albums",cfg.albums);
+      if(cfg.upgrades)  await saveConfig("upgrades",cfg.upgrades);
+      if(cfg.paymentMethods) await saveConfig("payments",cfg.paymentMethods);
+      if(cfg.sources)   await saveConfig("sources",cfg.sources);
+      if(cfg.customerTags) await saveConfig("customerTags",cfg.customerTags);
+    }
+  };
 
   const changePw=async(email,pass)=>await saveUsers(users.map(u=>u.email===email?{...u,password:pass}:u));
   const updateDisplayName=async(email,name)=>await saveUsers(users.map(u=>u.email===email?{...u,displayName:name}:u));
