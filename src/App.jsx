@@ -779,216 +779,205 @@ function WeeklySummary({ orders, onDismiss }) {
 
 
 // ══════════════════════════════════════════════════════════
-// V7: HEBREW/ENGLISH DUAL CALENDAR
+// V7.2: HEBREW/ENGLISH DUAL CALENDAR (powered by HebCal API)
 // ══════════════════════════════════════════════════════════
 
-// Jewish holidays (approximate Gregorian dates for 2024-2027)
-const JEWISH_HOLIDAYS = {
-  "2024-10-02": "🍎 Rosh Hashana",
-  "2024-10-03": "🍎 Rosh Hashana",
-  "2024-10-04": "✡️ Tzom Gedaliah",
-  "2024-10-11": "🙏 Yom Kippur",
-  "2024-10-16": "🌿 Sukkos",
-  "2024-10-17": "🌿 Sukkos",
-  "2024-10-23": "💃 Shemini Atzeres",
-  "2024-10-24": "📜 Simchas Torah",
-  "2024-12-25": "🕎 Chanuka (last day)",
-  "2024-12-26": "🕎 Chanuka",
-  "2024-12-27": "🕎 Chanuka",
-  "2024-12-28": "🕎 Chanuka",
-  "2024-12-29": "🕎 Chanuka",
-  "2024-12-30": "🕎 Chanuka",
-  "2024-12-31": "🕎 Chanuka",
-  "2025-01-01": "🕎 Chanuka (last day)",
-  "2025-01-13": "⚡ Asara B'Teves",
-  "2025-03-13": "🎭 Taanis Esther",
-  "2025-03-13": "🎭 Taanis Esther",
-  "2025-03-14": "🎉 Purim",
-  "2025-03-15": "🎉 Shushan Purim",
-  "2025-04-12": "🫓 Shabbos HaGadol",
-  "2025-04-13": "🍷 Bedikas Chametz",
-  "2025-04-14": "🕯️ Erev Pesach",
-  "2025-04-15": "🍷 Pesach",
-  "2025-04-16": "🍷 Pesach",
-  "2025-04-17": "🍷 Pesach Chol HaMoed",
-  "2025-04-18": "🍷 Pesach Chol HaMoed",
-  "2025-04-19": "🍷 Pesach Chol HaMoed",
-  "2025-04-20": "🍷 Pesach Chol HaMoed",
-  "2025-04-21": "🍷 Pesach (7th day)",
-  "2025-04-22": "🍷 Pesach (last day)",
-  "2025-05-02": "🔥 Lag BaOmer",
-  "2025-06-01": "📜 Shavuos",
-  "2025-06-02": "📜 Shavuos",
-  "2025-07-13": "😢 Shiva Asar B'Tammuz",
-  "2025-08-03": "😢 Tisha B'Av",
-  "2025-09-22": "🍎 Rosh Hashana",
-  "2025-09-23": "🍎 Rosh Hashana",
-  "2025-09-24": "✡️ Tzom Gedaliah",
-  "2025-10-01": "🙏 Yom Kippur",
-  "2025-10-06": "🌿 Sukkos",
-  "2025-10-07": "🌿 Sukkos",
-  "2025-10-13": "💃 Shemini Atzeres",
-  "2025-10-14": "📜 Simchas Torah",
-  "2025-12-14": "🕎 Chanuka",
-  "2025-12-15": "🕎 Chanuka",
-  "2025-12-16": "🕎 Chanuka",
-  "2025-12-17": "🕎 Chanuka",
-  "2025-12-18": "🕎 Chanuka",
-  "2025-12-19": "🕎 Chanuka",
-  "2025-12-20": "🕎 Chanuka",
-  "2025-12-21": "🕎 Chanuka (last day)",
-  "2026-01-01": "✡️ Asara B'Teves",
-  "2026-03-03": "🎭 Taanis Esther",
-  "2026-03-04": "🎉 Purim",
-  "2026-03-05": "🎉 Shushan Purim",
-  "2026-04-02": "🍷 Erev Pesach",
-  "2026-04-03": "🍷 Pesach",
-  "2026-04-04": "🍷 Pesach",
-  "2026-04-05": "🍷 Pesach Chol HaMoed",
-  "2026-04-06": "🍷 Pesach Chol HaMoed",
-  "2026-04-07": "🍷 Pesach Chol HaMoed",
-  "2026-04-08": "🍷 Pesach Chol HaMoed",
-  "2026-04-09": "🍷 Pesach (7th day)",
-  "2026-04-10": "🍷 Pesach (last day)",
-  "2026-04-21": "🔥 Lag BaOmer",
-  "2026-05-21": "📜 Shavuos",
-  "2026-05-22": "📜 Shavuos",
-  "2026-07-02": "😢 Shiva Asar B'Tammuz",
-  "2026-07-23": "😢 Tisha B'Av",
-};
-
-const AMERICAN_HOLIDAYS = {
-  "01-01": "🎆 New Year's Day",
-  "07-04": "🇺🇸 Independence Day",
-  "11-11": "🎖️ Veterans Day",
-  "12-25": "🎄 Christmas",
-  "12-24": "🎄 Christmas Eve",
-  "12-31": "🎆 New Year's Eve",
-};
-
-// Thanksgiving: 4th Thursday of November
-function getThanksgiving(year) {
-  const nov1 = new Date(year, 10, 1);
-  const day = nov1.getDay();
-  const firstThursday = day <= 4 ? 4 - day + 1 : 11 - day + 4 + 1;
-  const thanksgiving = firstThursday + 21;
-  return `${year}-11-${String(thanksgiving).padStart(2,"0")}`;
-}
-
-// MLK Day: 3rd Monday of January
-function getMLKDay(year) {
-  const jan1 = new Date(year, 0, 1);
-  const day = jan1.getDay();
-  const firstMonday = day <= 1 ? 1 - day + 1 : 8 - day + 1 + 1;
-  const mlk = firstMonday + 14;
-  return `${year}-01-${String(mlk).padStart(2,"0")}`;
-}
-
-function getDualCalendarHoliday(dateStr, year) {
-  // Check Jewish holidays
-  if(JEWISH_HOLIDAYS[dateStr]) return { label: JEWISH_HOLIDAYS[dateStr], type: "jewish" };
-  // Check American fixed holidays
-  const mmdd = dateStr.slice(5);
-  if(AMERICAN_HOLIDAYS[mmdd]) return { label: AMERICAN_HOLIDAYS[mmdd], type: "american" };
-  // Check Thanksgiving
-  if(dateStr === getThanksgiving(year)) return { label: "🦃 Thanksgiving", type: "american" };
-  if(dateStr === getMLKDay(year)) return { label: "✊ MLK Day", type: "american" };
-  return null;
+// American holidays (fixed dates + floating)
+function getAmericanHolidays(year) {
+  const h = {};
+  // Fixed
+  h[`${year}-01-01`] = { label:"🎆 New Year's Day", type:"american" };
+  h[`${year}-07-04`] = { label:"🇺🇸 Independence Day", type:"american" };
+  h[`${year}-11-11`] = { label:"🎖️ Veterans Day", type:"american" };
+  h[`${year}-12-24`] = { label:"🎄 Christmas Eve", type:"american" };
+  h[`${year}-12-25`] = { label:"🎄 Christmas Day", type:"american" };
+  h[`${year}-12-31`] = { label:"🎆 New Year's Eve", type:"american" };
+  // MLK Day: 3rd Monday of January
+  let d = new Date(year, 0, 1);
+  let mondays = 0;
+  while(mondays < 3) { if(d.getDay()===1) mondays++; if(mondays<3) d.setDate(d.getDate()+1); }
+  h[d.toISOString().split("T")[0]] = { label:"✊ MLK Day", type:"american" };
+  // Presidents Day: 3rd Monday of February
+  d = new Date(year, 1, 1); mondays = 0;
+  while(mondays < 3) { if(d.getDay()===1) mondays++; if(mondays<3) d.setDate(d.getDate()+1); }
+  h[d.toISOString().split("T")[0]] = { label:"🏛️ Presidents Day", type:"american" };
+  // Memorial Day: last Monday of May
+  d = new Date(year, 5, 0);
+  while(d.getDay()!==1) d.setDate(d.getDate()-1);
+  h[d.toISOString().split("T")[0]] = { label:"🪖 Memorial Day", type:"american" };
+  // Labor Day: 1st Monday of September
+  d = new Date(year, 8, 1);
+  while(d.getDay()!==1) d.setDate(d.getDate()+1);
+  h[d.toISOString().split("T")[0]] = { label:"👷 Labor Day", type:"american" };
+  // Columbus Day: 2nd Monday of October
+  d = new Date(year, 9, 1); mondays = 0;
+  while(mondays < 2) { if(d.getDay()===1) mondays++; if(mondays<2) d.setDate(d.getDate()+1); }
+  h[d.toISOString().split("T")[0]] = { label:"🔭 Columbus Day", type:"american" };
+  // Thanksgiving: 4th Thursday of November
+  d = new Date(year, 10, 1); let thursdays = 0;
+  while(thursdays < 4) { if(d.getDay()===4) thursdays++; if(thursdays<4) d.setDate(d.getDate()+1); }
+  h[d.toISOString().split("T")[0]] = { label:"🦃 Thanksgiving", type:"american" };
+  return h;
 }
 
 function DualCalendar() {
   const today = new Date();
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [tooltip, setTooltip] = useState(null);
+  const [viewYear,  setViewYear]  = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-based
+  const [jewishHolidays, setJewishHolidays] = useState({});
+  const [loadingHolidays, setLoadingHolidays] = useState(false);
   const [open, setOpen] = useState(true);
+  const [tooltip, setTooltip] = useState(null);
 
   const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dayNames   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // Fetch HebCal data when month/year changes
+  useEffect(() => {
+    setLoadingHolidays(true);
+    const url = `https://www.hebcal.com/hebcal?v=1&cfg=json&year=${viewYear}&month=${viewMonth+1}&maj=on&min=on&mod=on&nx=on&mf=on&ss=on&c=off&i=off&lg=s`;
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        const map = {};
+        (data.items || []).forEach(item => {
+          if(item.date && item.title) {
+            const dateKey = item.date.slice(0, 10);
+            // Pick emoji based on category
+            let emoji = "✡️";
+            const t = item.title.toLowerCase();
+            if(t.includes("rosh hashana"))    emoji = "🍎";
+            else if(t.includes("yom kippur")) emoji = "🙏";
+            else if(t.includes("sukkot")||t.includes("sukkos")) emoji = "🌿";
+            else if(t.includes("simchat")||t.includes("shemini")) emoji = "📜";
+            else if(t.includes("chanukah")||t.includes("hanukkah")) emoji = "🕎";
+            else if(t.includes("purim"))      emoji = "🎭";
+            else if(t.includes("pesach")||t.includes("passover")) emoji = "🍷";
+            else if(t.includes("shavuot")||t.includes("shavuos")) emoji = "📜";
+            else if(t.includes("lag b"))      emoji = "🔥";
+            else if(t.includes("tisha"))      emoji = "😢";
+            else if(t.includes("fast")||t.includes("tzom")||t.includes("ta'anit")) emoji = "😢";
+            else if(t.includes("rosh chodesh")) emoji = "🌙";
+            else if(t.includes("tu b"))       emoji = "🌳";
+            else if(t.includes("israel")||t.includes("yom ha")) emoji = "🕍";
+            // Store — if multiple holidays on same day, append
+            if(map[dateKey]) {
+              map[dateKey].label += " · " + emoji + " " + item.title;
+            } else {
+              map[dateKey] = { label: emoji + " " + item.title, type: "jewish", category: item.category };
+            }
+          }
+        });
+        setJewishHolidays(map);
+        setLoadingHolidays(false);
+      })
+      .catch(() => setLoadingHolidays(false));
+  }, [viewYear, viewMonth]);
+
+  const americanHolidays = getAmericanHolidays(viewYear);
 
   const prevMonth = () => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1); };
   const nextMonth = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1); };
 
-  // Build calendar grid
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  // Build grid
+  const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
   const days = [];
   for(let i=0; i<firstDay; i++) days.push(null);
   for(let i=1; i<=daysInMonth; i++) days.push(i);
   while(days.length%7!==0) days.push(null);
 
-  const todayStr2 = today.toISOString().split("T")[0];
+  const todayStr = today.toISOString().split("T")[0];
+
+  const getHoliday = (dateStr) => {
+    if(jewishHolidays[dateStr]) return jewishHolidays[dateStr];
+    if(americanHolidays[dateStr]) return americanHolidays[dateStr];
+    return null;
+  };
+
+  const getHebrewDate = (year, month, day) => {
+    try {
+      return new Intl.DateTimeFormat("he-IL-u-ca-hebrew", { day:"numeric" }).format(new Date(year, month, day));
+    } catch { return ""; }
+  };
+
+  const getFullHebrewDate = (year, month, day) => {
+    try {
+      return new Intl.DateTimeFormat("he-IL-u-ca-hebrew", { day:"numeric", month:"long", year:"numeric" }).format(new Date(year, month, day));
+    } catch { return ""; }
+  };
 
   return(
     <div style={{background:"white",borderRadius:16,marginBottom:20,boxShadow:"0 4px 16px rgba(0,0,0,0.07)",overflow:"hidden"}}>
-      {/* Header */}
-      <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",background:"white"}} onClick={()=>setOpen(o=>!o)}>
+      {/* Collapsible header */}
+      <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:16,transition:"transform .2s",display:"inline-block",transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
           <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>🗓 Hebrew / English Calendar</span>
+          {loadingHolidays&&<span style={{fontSize:11,color:"#94a3b8"}}>Loading holidays…</span>}
         </div>
         {!open&&<span style={{fontSize:12,color:"#64748b"}}>{monthNames[viewMonth]} {viewYear}</span>}
       </div>
 
       {open&&(
-        <div style={{padding:"0 16px 16px"}}>
-          {/* Month Navigation */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,padding:"0 4px"}}>
-            <button onClick={prevMonth} style={{background:"#f1f5f9",border:"none",borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+        <div style={{padding:"0 16px 18px"}}>
+          {/* Month navigation */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,padding:"0 4px"}}>
+            <button onClick={prevMonth} style={{background:"#f1f5f9",border:"none",borderRadius:8,width:36,height:36,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>‹</button>
             <div style={{textAlign:"center"}}>
-              <div style={{fontWeight:700,fontSize:16,color:"#0f172a"}}>{monthNames[viewMonth]} {viewYear}</div>
-              <div style={{fontSize:11,color:"#8b5cf6",marginTop:1}}>
+              <div style={{fontWeight:700,fontSize:17,color:"#0f172a"}}>{monthNames[viewMonth]} {viewYear}</div>
+              <div style={{fontSize:12,color:"#8b5cf6",marginTop:2}}>
                 {(() => {
                   try {
-                    const d = new Date(viewYear, viewMonth, 15);
-                    return new Intl.DateTimeFormat("he-IL-u-ca-hebrew",{month:"long",year:"numeric"}).format(d);
+                    return new Intl.DateTimeFormat("he-IL-u-ca-hebrew",{month:"long",year:"numeric"}).format(new Date(viewYear,viewMonth,15));
                   } catch { return ""; }
                 })()}
               </div>
             </div>
-            <button onClick={nextMonth} style={{background:"#f1f5f9",border:"none",borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+            <button onClick={nextMonth} style={{background:"#f1f5f9",border:"none",borderRadius:8,width:36,height:36,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>›</button>
           </div>
 
-          {/* Day headers */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+          {/* Day name headers */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
             {dayNames.map(d=>(
-              <div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94a3b8",padding:"4px 0"}}>{d}</div>
+              <div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94a3b8",padding:"3px 0"}}>{d}</div>
             ))}
           </div>
 
-          {/* Days grid */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+          {/* Days */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
             {days.map((day,i)=>{
-              if(!day) return <div key={i}/>;
+              if(!day) return <div key={`e-${i}`}/>;
               const dateStr = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-              const isToday = dateStr===todayStr2;
-              const isSabbath = (i%7)===6;
-              const holiday = getDualCalendarHoliday(dateStr, viewYear);
-              let hebrewDay = "";
-              try {
-                hebrewDay = new Intl.DateTimeFormat("he-IL-u-ca-hebrew",{day:"numeric"}).format(new Date(viewYear,viewMonth,day));
-              } catch {}
+              const isToday  = dateStr === todayStr;
+              const holiday  = getHoliday(dateStr);
+              const hebrewDay = getHebrewDate(viewYear, viewMonth, day);
+              const isJewish   = holiday?.type === "jewish";
+              const isAmerican = holiday?.type === "american";
 
               return(
-                <div key={i}
-                  onClick={()=>setTooltip(tooltip===dateStr?null:dateStr)}
+                <div key={dateStr}
+                  onClick={()=>setTooltip(tooltip===dateStr ? null : dateStr)}
                   style={{
-                    borderRadius:8,padding:"4px 2px",textAlign:"center",cursor:"pointer",
-                    background: isToday?"#5271FF":holiday?.type==="jewish"?"#fdf4ff":holiday?.type==="american"?"#fff7ed":isSabbath?"#fef9c3":"#f8fafc",
-                    border: isToday?"2px solid #5271FF":holiday?"2px solid "+(holiday.type==="jewish"?"#c084fc":"#fbbf24"):"2px solid transparent",
-                    position:"relative",minHeight:52,
+                    borderRadius:8, padding:"5px 3px", textAlign:"center",
+                    cursor:"pointer", position:"relative", minHeight:54,
+                    background: isToday ? BLUE : isJewish ? "#fdf4ff" : isAmerican ? "#fff7ed" : "#f8fafc",
+                    border: isToday ? `2px solid ${BLUE}` : isJewish ? "2px solid #c084fc" : isAmerican ? "2px solid #fbbf24" : "2px solid transparent",
                   }}>
-                  <div style={{fontSize:13,fontWeight:700,color:isToday?"white":isSabbath?"#92400e":"#0f172a",lineHeight:1.2}}>{day}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:isToday?"white":"#0f172a",lineHeight:1.2}}>{day}</div>
                   <div style={{fontSize:9,color:isToday?"rgba(255,255,255,0.85)":"#8b5cf6",lineHeight:1.1,marginTop:1}}>{hebrewDay}</div>
-                  {holiday&&<div style={{fontSize:8,marginTop:2,lineHeight:1.1,color:isToday?"white":holiday.type==="jewish"?"#7e22ce":"#92400e",fontWeight:600}}>{holiday.label.slice(0,12)}</div>}
-                  {/* Tooltip */}
+                  {holiday&&(
+                    <div style={{fontSize:8,marginTop:2,lineHeight:1.1,color:isToday?"white":isJewish?"#7e22ce":"#92400e",fontWeight:600,overflow:"hidden",maxHeight:18}}>
+                      {holiday.label.length>14 ? holiday.label.slice(0,13)+"…" : holiday.label}
+                    </div>
+                  )}
+
+                  {/* Tooltip on tap */}
                   {tooltip===dateStr&&(
-                    <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:50,background:"#0f172a",color:"white",borderRadius:8,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap",boxShadow:"0 4px 16px rgba(0,0,0,0.3)",marginTop:4,minWidth:140,textAlign:"left"}}>
-                      <div style={{fontWeight:700,marginBottom:3}}>{monthNames[viewMonth]} {day}, {viewYear}</div>
-                      <div style={{color:"#c084fc",marginBottom:holiday?3:0}}>{hebrewDay && (() => {
-                        try { return new Intl.DateTimeFormat("he-IL-u-ca-hebrew",{day:"numeric",month:"long",year:"numeric"}).format(new Date(viewYear,viewMonth,day)); } catch { return ""; }
-                      })()}</div>
-                      {holiday&&<div style={{color:holiday.type==="jewish"?"#f0abfc":"#fbbf24",fontWeight:600}}>{holiday.label}</div>}
+                    <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:200,background:"#0f172a",color:"white",borderRadius:10,padding:"10px 14px",fontSize:11,whiteSpace:"nowrap",boxShadow:"0 8px 24px rgba(0,0,0,0.3)",marginTop:6,minWidth:160,textAlign:"left",lineHeight:1.6}}>
+                      <div style={{fontWeight:700,fontSize:12,marginBottom:4}}>{monthNames[viewMonth]} {day}, {viewYear}</div>
+                      <div style={{color:"#c084fc"}}>{getFullHebrewDate(viewYear, viewMonth, day)}</div>
+                      {holiday&&<div style={{color:isJewish?"#f0abfc":"#fbbf24",fontWeight:600,marginTop:4}}>{holiday.label}</div>}
                     </div>
                   )}
                 </div>
@@ -997,18 +986,18 @@ function DualCalendar() {
           </div>
 
           {/* Legend */}
-          <div style={{display:"flex",gap:14,marginTop:12,flexWrap:"wrap",paddingTop:10,borderTop:"1px solid #f1f5f9"}}>
+          <div style={{display:"flex",gap:16,marginTop:14,paddingTop:12,borderTop:"1px solid #f1f5f9",flexWrap:"wrap"}}>
             {[
-              {color:"#5271FF",label:"Today"},
-              {color:"#c084fc",label:"Jewish Holiday"},
-              {color:"#fbbf24",label:"American Holiday"},
-              {color:"#92400e",bg:"#fef9c3",label:"Shabbos"},
+              {bg:BLUE,     label:"Today"},
+              {bg:"#c084fc", label:"Jewish Holiday"},
+              {bg:"#fbbf24", label:"American Holiday"},
             ].map(item=>(
               <div key={item.label} style={{display:"flex",alignItems:"center",gap:5}}>
-                <div style={{width:12,height:12,borderRadius:3,background:item.bg||item.color}}/>
+                <div style={{width:12,height:12,borderRadius:3,background:item.bg}}/>
                 <span style={{fontSize:10,color:"#64748b"}}>{item.label}</span>
               </div>
             ))}
+            <div style={{marginLeft:"auto",fontSize:10,color:"#94a3b8"}}>Powered by HebCal</div>
           </div>
         </div>
       )}
