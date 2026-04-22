@@ -779,6 +779,245 @@ function WeeklySummary({ orders, onDismiss }) {
 
 
 // ══════════════════════════════════════════════════════════
+// V7: HEBREW/ENGLISH DUAL CALENDAR
+// ══════════════════════════════════════════════════════════
+
+// Jewish holidays (approximate Gregorian dates for 2024-2027)
+const JEWISH_HOLIDAYS = {
+  "2024-10-02": "🍎 Rosh Hashana",
+  "2024-10-03": "🍎 Rosh Hashana",
+  "2024-10-04": "✡️ Tzom Gedaliah",
+  "2024-10-11": "🙏 Yom Kippur",
+  "2024-10-16": "🌿 Sukkos",
+  "2024-10-17": "🌿 Sukkos",
+  "2024-10-23": "💃 Shemini Atzeres",
+  "2024-10-24": "📜 Simchas Torah",
+  "2024-12-25": "🕎 Chanuka (last day)",
+  "2024-12-26": "🕎 Chanuka",
+  "2024-12-27": "🕎 Chanuka",
+  "2024-12-28": "🕎 Chanuka",
+  "2024-12-29": "🕎 Chanuka",
+  "2024-12-30": "🕎 Chanuka",
+  "2024-12-31": "🕎 Chanuka",
+  "2025-01-01": "🕎 Chanuka (last day)",
+  "2025-01-13": "⚡ Asara B'Teves",
+  "2025-03-13": "🎭 Taanis Esther",
+  "2025-03-13": "🎭 Taanis Esther",
+  "2025-03-14": "🎉 Purim",
+  "2025-03-15": "🎉 Shushan Purim",
+  "2025-04-12": "🫓 Shabbos HaGadol",
+  "2025-04-13": "🍷 Bedikas Chametz",
+  "2025-04-14": "🕯️ Erev Pesach",
+  "2025-04-15": "🍷 Pesach",
+  "2025-04-16": "🍷 Pesach",
+  "2025-04-17": "🍷 Pesach Chol HaMoed",
+  "2025-04-18": "🍷 Pesach Chol HaMoed",
+  "2025-04-19": "🍷 Pesach Chol HaMoed",
+  "2025-04-20": "🍷 Pesach Chol HaMoed",
+  "2025-04-21": "🍷 Pesach (7th day)",
+  "2025-04-22": "🍷 Pesach (last day)",
+  "2025-05-02": "🔥 Lag BaOmer",
+  "2025-06-01": "📜 Shavuos",
+  "2025-06-02": "📜 Shavuos",
+  "2025-07-13": "😢 Shiva Asar B'Tammuz",
+  "2025-08-03": "😢 Tisha B'Av",
+  "2025-09-22": "🍎 Rosh Hashana",
+  "2025-09-23": "🍎 Rosh Hashana",
+  "2025-09-24": "✡️ Tzom Gedaliah",
+  "2025-10-01": "🙏 Yom Kippur",
+  "2025-10-06": "🌿 Sukkos",
+  "2025-10-07": "🌿 Sukkos",
+  "2025-10-13": "💃 Shemini Atzeres",
+  "2025-10-14": "📜 Simchas Torah",
+  "2025-12-14": "🕎 Chanuka",
+  "2025-12-15": "🕎 Chanuka",
+  "2025-12-16": "🕎 Chanuka",
+  "2025-12-17": "🕎 Chanuka",
+  "2025-12-18": "🕎 Chanuka",
+  "2025-12-19": "🕎 Chanuka",
+  "2025-12-20": "🕎 Chanuka",
+  "2025-12-21": "🕎 Chanuka (last day)",
+  "2026-01-01": "✡️ Asara B'Teves",
+  "2026-03-03": "🎭 Taanis Esther",
+  "2026-03-04": "🎉 Purim",
+  "2026-03-05": "🎉 Shushan Purim",
+  "2026-04-02": "🍷 Erev Pesach",
+  "2026-04-03": "🍷 Pesach",
+  "2026-04-04": "🍷 Pesach",
+  "2026-04-05": "🍷 Pesach Chol HaMoed",
+  "2026-04-06": "🍷 Pesach Chol HaMoed",
+  "2026-04-07": "🍷 Pesach Chol HaMoed",
+  "2026-04-08": "🍷 Pesach Chol HaMoed",
+  "2026-04-09": "🍷 Pesach (7th day)",
+  "2026-04-10": "🍷 Pesach (last day)",
+  "2026-04-21": "🔥 Lag BaOmer",
+  "2026-05-21": "📜 Shavuos",
+  "2026-05-22": "📜 Shavuos",
+  "2026-07-02": "😢 Shiva Asar B'Tammuz",
+  "2026-07-23": "😢 Tisha B'Av",
+};
+
+const AMERICAN_HOLIDAYS = {
+  "01-01": "🎆 New Year's Day",
+  "07-04": "🇺🇸 Independence Day",
+  "11-11": "🎖️ Veterans Day",
+  "12-25": "🎄 Christmas",
+  "12-24": "🎄 Christmas Eve",
+  "12-31": "🎆 New Year's Eve",
+};
+
+// Thanksgiving: 4th Thursday of November
+function getThanksgiving(year) {
+  const nov1 = new Date(year, 10, 1);
+  const day = nov1.getDay();
+  const firstThursday = day <= 4 ? 4 - day + 1 : 11 - day + 4 + 1;
+  const thanksgiving = firstThursday + 21;
+  return `${year}-11-${String(thanksgiving).padStart(2,"0")}`;
+}
+
+// MLK Day: 3rd Monday of January
+function getMLKDay(year) {
+  const jan1 = new Date(year, 0, 1);
+  const day = jan1.getDay();
+  const firstMonday = day <= 1 ? 1 - day + 1 : 8 - day + 1 + 1;
+  const mlk = firstMonday + 14;
+  return `${year}-01-${String(mlk).padStart(2,"0")}`;
+}
+
+function getDualCalendarHoliday(dateStr, year) {
+  // Check Jewish holidays
+  if(JEWISH_HOLIDAYS[dateStr]) return { label: JEWISH_HOLIDAYS[dateStr], type: "jewish" };
+  // Check American fixed holidays
+  const mmdd = dateStr.slice(5);
+  if(AMERICAN_HOLIDAYS[mmdd]) return { label: AMERICAN_HOLIDAYS[mmdd], type: "american" };
+  // Check Thanksgiving
+  if(dateStr === getThanksgiving(year)) return { label: "🦃 Thanksgiving", type: "american" };
+  if(dateStr === getMLKDay(year)) return { label: "✊ MLK Day", type: "american" };
+  return null;
+}
+
+function DualCalendar() {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [tooltip, setTooltip] = useState(null);
+  const [open, setOpen] = useState(true);
+
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  const prevMonth = () => { if(viewMonth===0){setViewMonth(11);setViewYear(y=>y-1);}else setViewMonth(m=>m-1); };
+  const nextMonth = () => { if(viewMonth===11){setViewMonth(0);setViewYear(y=>y+1);}else setViewMonth(m=>m+1); };
+
+  // Build calendar grid
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const days = [];
+  for(let i=0; i<firstDay; i++) days.push(null);
+  for(let i=1; i<=daysInMonth; i++) days.push(i);
+  while(days.length%7!==0) days.push(null);
+
+  const todayStr2 = today.toISOString().split("T")[0];
+
+  return(
+    <div style={{background:"white",borderRadius:16,marginBottom:20,boxShadow:"0 4px 16px rgba(0,0,0,0.07)",overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",background:"white"}} onClick={()=>setOpen(o=>!o)}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16,transition:"transform .2s",display:"inline-block",transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
+          <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>🗓 Hebrew / English Calendar</span>
+        </div>
+        {!open&&<span style={{fontSize:12,color:"#64748b"}}>{monthNames[viewMonth]} {viewYear}</span>}
+      </div>
+
+      {open&&(
+        <div style={{padding:"0 16px 16px"}}>
+          {/* Month Navigation */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,padding:"0 4px"}}>
+            <button onClick={prevMonth} style={{background:"#f1f5f9",border:"none",borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontWeight:700,fontSize:16,color:"#0f172a"}}>{monthNames[viewMonth]} {viewYear}</div>
+              <div style={{fontSize:11,color:"#8b5cf6",marginTop:1}}>
+                {(() => {
+                  try {
+                    const d = new Date(viewYear, viewMonth, 15);
+                    return new Intl.DateTimeFormat("he-IL-u-ca-hebrew",{month:"long",year:"numeric"}).format(d);
+                  } catch { return ""; }
+                })()}
+              </div>
+            </div>
+            <button onClick={nextMonth} style={{background:"#f1f5f9",border:"none",borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+          </div>
+
+          {/* Day headers */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+            {dayNames.map(d=>(
+              <div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94a3b8",padding:"4px 0"}}>{d}</div>
+            ))}
+          </div>
+
+          {/* Days grid */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+            {days.map((day,i)=>{
+              if(!day) return <div key={i}/>;
+              const dateStr = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+              const isToday = dateStr===todayStr2;
+              const isSabbath = (i%7)===6;
+              const holiday = getDualCalendarHoliday(dateStr, viewYear);
+              let hebrewDay = "";
+              try {
+                hebrewDay = new Intl.DateTimeFormat("he-IL-u-ca-hebrew",{day:"numeric"}).format(new Date(viewYear,viewMonth,day));
+              } catch {}
+
+              return(
+                <div key={i}
+                  onClick={()=>setTooltip(tooltip===dateStr?null:dateStr)}
+                  style={{
+                    borderRadius:8,padding:"4px 2px",textAlign:"center",cursor:"pointer",
+                    background: isToday?"#5271FF":holiday?.type==="jewish"?"#fdf4ff":holiday?.type==="american"?"#fff7ed":isSabbath?"#fef9c3":"#f8fafc",
+                    border: isToday?"2px solid #5271FF":holiday?"2px solid "+(holiday.type==="jewish"?"#c084fc":"#fbbf24"):"2px solid transparent",
+                    position:"relative",minHeight:52,
+                  }}>
+                  <div style={{fontSize:13,fontWeight:700,color:isToday?"white":isSabbath?"#92400e":"#0f172a",lineHeight:1.2}}>{day}</div>
+                  <div style={{fontSize:9,color:isToday?"rgba(255,255,255,0.85)":"#8b5cf6",lineHeight:1.1,marginTop:1}}>{hebrewDay}</div>
+                  {holiday&&<div style={{fontSize:8,marginTop:2,lineHeight:1.1,color:isToday?"white":holiday.type==="jewish"?"#7e22ce":"#92400e",fontWeight:600}}>{holiday.label.slice(0,12)}</div>}
+                  {/* Tooltip */}
+                  {tooltip===dateStr&&(
+                    <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:50,background:"#0f172a",color:"white",borderRadius:8,padding:"8px 12px",fontSize:11,whiteSpace:"nowrap",boxShadow:"0 4px 16px rgba(0,0,0,0.3)",marginTop:4,minWidth:140,textAlign:"left"}}>
+                      <div style={{fontWeight:700,marginBottom:3}}>{monthNames[viewMonth]} {day}, {viewYear}</div>
+                      <div style={{color:"#c084fc",marginBottom:holiday?3:0}}>{hebrewDay && (() => {
+                        try { return new Intl.DateTimeFormat("he-IL-u-ca-hebrew",{day:"numeric",month:"long",year:"numeric"}).format(new Date(viewYear,viewMonth,day)); } catch { return ""; }
+                      })()}</div>
+                      {holiday&&<div style={{color:holiday.type==="jewish"?"#f0abfc":"#fbbf24",fontWeight:600}}>{holiday.label}</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div style={{display:"flex",gap:14,marginTop:12,flexWrap:"wrap",paddingTop:10,borderTop:"1px solid #f1f5f9"}}>
+            {[
+              {color:"#5271FF",label:"Today"},
+              {color:"#c084fc",label:"Jewish Holiday"},
+              {color:"#fbbf24",label:"American Holiday"},
+              {color:"#92400e",bg:"#fef9c3",label:"Shabbos"},
+            ].map(item=>(
+              <div key={item.label} style={{display:"flex",alignItems:"center",gap:5}}>
+                <div style={{width:12,height:12,borderRadius:3,background:item.bg||item.color}}/>
+                <span style={{fontSize:10,color:"#64748b"}}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
 // V6.2: QUICK NOTE MODAL
 // ══════════════════════════════════════════════════════════
 function QuickNoteModal({ order, onSave, onClose, th }) {
@@ -2130,6 +2369,102 @@ function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) 
 
 
 // ══════════════════════════════════════════════════════════
+// V7: SHARED COMPANY NOTES TAB
+// ══════════════════════════════════════════════════════════
+function CompanyNotesTab({ notes, onSave, currentUser, th }) {
+  const [items, setItems] = useState(notes||[]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newBody, setNewBody] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const inp = iStyle(th);
+
+  // Sync from props
+  React.useEffect(()=>{ setItems(notes||[]); },[notes]);
+
+  const addNote = () => {
+    if(!newTitle.trim()&&!newBody.trim()) return;
+    const note = { id:uid(), title:newTitle.trim()||"Note", body:newBody.trim(), createdBy:currentUser?.displayName||currentUser?.email||"Unknown", createdAt:new Date().toISOString() };
+    const updated = [note,...items];
+    setItems(updated); onSave(updated);
+    setNewTitle(""); setNewBody(""); setShowNew(false);
+  };
+
+  const startEdit = (note) => { setEditingId(note.id); setEditTitle(note.title); setEditBody(note.body); };
+  const saveEdit = () => {
+    const updated = items.map(n=>n.id===editingId?{...n,title:editTitle,body:editBody,editedBy:currentUser?.displayName||currentUser?.email,editedAt:new Date().toISOString()}:n);
+    setItems(updated); onSave(updated); setEditingId(null);
+  };
+  const deleteNote = (id) => {
+    if(!window.confirm("Delete this note?")) return;
+    const updated = items.filter(n=>n.id!==id);
+    setItems(updated); onSave(updated);
+  };
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:13,color:th.subtext}}>Shared notes visible to all users in real time.</div>
+        <button onClick={()=>setShowNew(s=>!s)} style={{padding:"9px 18px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>
+          {showNew?"Cancel":"+ New Note"}
+        </button>
+      </div>
+
+      {/* New note form */}
+      {showNew&&(
+        <div style={{background:th.card,borderRadius:12,padding:16,marginBottom:16,border:`2px solid ${BLUE}`,boxShadow:"0 4px 16px rgba(82,113,255,0.15)"}}>
+          <input value={newTitle} onChange={e=>setNewTitle(e.target.value)} placeholder="Note title…" style={{...inp,marginBottom:10,fontWeight:600,fontSize:14}}/>
+          <textarea value={newBody} onChange={e=>setNewBody(e.target.value)} placeholder="Write your note here…" rows={4} style={{...inp,resize:"vertical",fontSize:13,marginBottom:12}}/>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setShowNew(false);setNewTitle("");setNewBody("");}} style={{flex:1,padding:"10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Cancel</button>
+            <button onClick={addNote} style={{flex:2,padding:"10px",borderRadius:8,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>💾 Save Note</button>
+          </div>
+        </div>
+      )}
+
+      {/* Notes list */}
+      {items.length===0&&!showNew&&(
+        <div style={{textAlign:"center",padding:"40px 20px",color:th.subtext,fontSize:14}}>
+          📋 No notes yet. Tap "+ New Note" to add one.
+        </div>
+      )}
+      {items.map(note=>(
+        <div key={note.id} style={{background:th.card,borderRadius:12,padding:16,marginBottom:12,border:`1px solid ${th.border}`,boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
+          {editingId===note.id?(
+            <div>
+              <input value={editTitle} onChange={e=>setEditTitle(e.target.value)} style={{...inp,marginBottom:10,fontWeight:600,fontSize:14}}/>
+              <textarea value={editBody} onChange={e=>setEditBody(e.target.value)} rows={4} style={{...inp,resize:"vertical",fontSize:13,marginBottom:12}}/>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setEditingId(null)} style={{flex:1,padding:"9px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:13,fontFamily:"system-ui,sans-serif"}}>Cancel</button>
+                <button onClick={saveEdit} style={{flex:2,padding:"9px",borderRadius:8,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>💾 Save</button>
+              </div>
+            </div>
+          ):(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div style={{fontWeight:700,fontSize:15,color:th.text}}>{note.title}</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>startEdit(note)} style={{padding:"4px 12px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
+                  <button onClick={()=>deleteNote(note.id)} style={{padding:"4px 12px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete</button>
+                </div>
+              </div>
+              {note.body&&<div style={{fontSize:13,color:th.text,lineHeight:1.6,whiteSpace:"pre-wrap",marginBottom:10}}>{note.body}</div>}
+              <div style={{fontSize:11,color:th.subtext,borderTop:`1px solid ${th.border}`,paddingTop:8}}>
+                📝 Created by <strong>{note.createdBy}</strong> · {fmtDateTime(note.createdAt)}
+                {note.editedBy&&<span> · ✏️ Edited by <strong>{note.editedBy}</strong> · {fmtDateTime(note.editedAt)}</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
 // V6.2: PIPELINE EDITOR TAB
 // ══════════════════════════════════════════════════════════
 function PipelineTab({ customStatuses, onSave, th }) {
@@ -2504,10 +2839,11 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,da
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,companyNotes,onSaveCompanyNotes,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
     {id:"pipeline",icon:"🔄",label:"Pipeline",desc:"Edit order statuses & stages"},
+    {id:"notes",icon:"📋",label:"Company Notes",desc:"Shared notes for your whole team"},
     {id:"albums",icon:"📚",label:"Albums",desc:"Manage album types & prices"},
     {id:"upgrades",icon:"✨",label:"Upgrades",desc:"Manage add-ons & prices"},
     {id:"payments",icon:"💳",label:"Payments",desc:"Payment methods"},
@@ -2528,6 +2864,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     const content=()=>{
       switch(activeTab){
         case "pipeline":  return <PipelineTab customStatuses={customStatuses} onSave={onSaveCustomStatuses} th={th}/>;
+        case "notes":     return <CompanyNotesTab notes={companyNotes} onSave={onSaveCompanyNotes} currentUser={currentUser} th={th}/>;
         case "albums":    return <ListEditor items={albums} onSave={onSaveAlbums} th={th} placeholder="Album name"/>;
         case "upgrades":  return <ListEditor items={upgrades} onSave={onSaveUpgrades} th={th} placeholder="Upgrade name"/>;
         case "payments":  return <PaymentsTab paymentMethods={paymentMethods} onSave={onSavePayments} th={th}/>;
@@ -2551,22 +2888,43 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
       </div>
     );
   }
+  const TAB_COLORS = {
+    pipeline:  "linear-gradient(135deg,#667eea,#764ba2)",
+    notes:     "linear-gradient(135deg,#f093fb,#f5576c)",
+    albums:    "linear-gradient(135deg,#5271FF,#7c93ff)",
+    upgrades:  "linear-gradient(135deg,#0ea5e9,#38bdf8)",
+    payments:  "linear-gradient(135deg,#18B978,#34d399)",
+    lists:     "linear-gradient(135deg,#f59e0b,#fbbf24)",
+    customers: "linear-gradient(135deg,#8b5cf6,#a78bfa)",
+    insights:  "linear-gradient(135deg,#06b6d4,#22d3ee)",
+    trash:     "linear-gradient(135deg,#64748b,#94a3b8)",
+    company:   "linear-gradient(135deg,#0f1f4b,#1e3a8a)",
+    backup:    "linear-gradient(135deg,#16a34a,#4ade80)",
+    users:     "linear-gradient(135deg,#dc2626,#f87171)",
+    shortcuts: "linear-gradient(135deg,#374151,#6b7280)",
+    account:   "linear-gradient(135deg,#C9A84C,#fbbf24)",
+  };
   return(
     <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
       <NavBar title="⚙️ Settings" onBack={onBack}/>
-      <div style={{padding:"24px 28px",maxWidth:680,margin:"0 auto"}}>
-        {tabs.map(tab=>(
-          <div key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{background:"white",borderRadius:14,padding:"18px 22px",marginBottom:12,border:"1px solid #e8ecf0",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:16}}>
-              <span style={{fontSize:28}}>{tab.icon}</span>
-              <div>
-                <div style={{fontWeight:700,fontSize:15,color:"#0f172a"}}>{tab.label}</div>
-                <div style={{fontSize:12,color:"#64748b",marginTop:2}}>{tab.desc}</div>
-              </div>
+      <div style={{padding:"24px",maxWidth:800,margin:"0 auto"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+          {tabs.map(tab=>(
+            <div key={tab.id} onClick={()=>setActiveTab(tab.id)}
+              style={{background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
+                borderRadius:16,padding:"18px 12px",cursor:"pointer",
+                boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
+                display:"flex",flexDirection:"column",alignItems:"center",
+                textAlign:"center",gap:8,minHeight:110,position:"relative"}}>
+              <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
+              <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
+              {tab.id==="trash"&&(trash||[]).length>0&&(
+                <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
+              )}
             </div>
-            <span style={{color:"#94a3b8",fontSize:22}}>›</span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -2589,7 +2947,8 @@ export default function App() {
   const [sources,setSources]=useState(DEFAULT_SOURCES);
   const [customerTags,setCustomerTags]=useState([]);
   const [companyProfile,setCompanyProfile]=useState(null);
-  const [customStatuses,setCustomStatuses]=useState(null); // null = use defaults
+  const [customStatuses,setCustomStatuses]=useState(null);
+  const [companyNotes,setCompanyNotes]=useState([]); // null = use defaults
   const [lang,setLang]=useState(()=>lsGet("lb_lang")||"en");
   const [darkMode,setDarkMode]=useState(false);
   const [invoiceMap,setInvoiceMap]=useState({});
@@ -2719,6 +3078,10 @@ export default function App() {
   const saveSources=async(items)=>await saveConfig("sources",items);
   const saveCustomerTags=async(items)=>await saveConfig("customerTags",items);
   const togLang=l=>{setLang(l);lsSet("lb_lang",l);};
+  const saveCompanyNotes=async(notes)=>{
+    await setDoc(doc(db,"config","companyNotes"),{items:notes});
+  };
+
   const saveCustomStatuses=async(items)=>{
     await setDoc(doc(db,"config","customStatuses"),{items});
     setCustomStatuses(items.length>0?items:null);
@@ -2797,6 +3160,7 @@ export default function App() {
       companyProfile={companyProfile} onSaveCompanyProfile={saveCompanyProfile}
       onRestoreBackup={restoreBackup}
       customStatuses={customStatuses} onSaveCustomStatuses={saveCustomStatuses}
+      companyNotes={companyNotes} onSaveCompanyNotes={saveCompanyNotes}
       lang={lang}               onToggleLang={togLang}
       darkMode={darkMode}       onToggleDark={togDark}
       onChangePw={changePw}     onUpdateDisplayName={updateDisplayName} onUpdatePhoto={updatePhoto}
