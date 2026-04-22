@@ -1175,6 +1175,8 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
         <StatCards orders={orders} onFilterUnpaid={filterUnpaid}/>
         <Pipeline orders={orders} statusFilter={statusFilter} setStatusFilter={setStatusFilter} activeStatuses={activeStatuses}/>
         <FlagsSection orders={orders} onEdit={onEdit} onSnooze={onSnooze}/>
+        <UpcomingDeadlines orders={orders} onEdit={onEdit}/>
+        <DualCalendar/>
 
         {/* Collapsible Orders List */}
         <div style={{background:"white",borderRadius:16,boxShadow:"0 4px 16px rgba(0,0,0,0.06)"}}>
@@ -2851,16 +2853,17 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     {id:"customers",icon:"👥",label:"Customers",desc:"Customer database & history"},
     {id:"insights",icon:"📊",label:"Business Insights",desc:"Revenue, trends & analytics"},
     {id:"trash",icon:"🗑️",label:"Trash",desc:`${(trash||[]).length} deleted order${(trash||[]).length!==1?"s":""}`},
-    ...(isAdmin?[
-      {id:"company",icon:"🏢",label:"Company Profile",desc:"Logo, name, contact info for invoices"},
-      {id:"backup",icon:"💾",label:"Backup & Restore",desc:"Download or restore your data"},
-      {id:"users",icon:"🔑",label:"Users",desc:"Manage user accounts"},
-    ]:[]),
     {id:"shortcuts",icon:"⌨️",label:"Keyboard Shortcuts",desc:"Customize keyboard shortcuts"},
     {id:"account",icon:"🙋",label:"My Account",desc:"Password, language & display settings"},
   ];
+  const adminTabs=[
+    {id:"company",icon:"🏢",label:"Company Profile",desc:"Logo, name, contact info for invoices"},
+    {id:"backup",icon:"💾",label:"Backup & Restore",desc:"Download or restore your data"},
+    {id:"users",icon:"🔑",label:"Users",desc:"Manage user accounts"},
+  ];
+  const allTabs=[...tabs,...(isAdmin?adminTabs:[])];
   if(activeTab){
-    const tab=tabs.find(t=>t.id===activeTab);
+    const tab=allTabs.find(t=>t.id===activeTab);
     const content=()=>{
       switch(activeTab){
         case "pipeline":  return <PipelineTab customStatuses={customStatuses} onSave={onSaveCustomStatuses} th={th}/>;
@@ -2869,7 +2872,6 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
         case "upgrades":  return <ListEditor items={upgrades} onSave={onSaveUpgrades} th={th} placeholder="Upgrade name"/>;
         case "payments":  return <PaymentsTab paymentMethods={paymentMethods} onSave={onSavePayments} th={th}/>;
         case "users":     return <UsersTab users={users} onSave={onSaveUsers} th={th}/>;
-
         case "insights":  return <InsightsTab orders={orders} th={th}/>;
         case "customers": return <CustomersTab customers={customers} onSave={onSaveCustomer} orders={orders} sources={sources} customerTags={customerTags} th={th}/>;
         case "lists":     return <ListsTagsTab sources={sources} onSaveSources={onSaveSources} customerTags={customerTags} onSaveCustomerTags={onSaveCustomerTags} th={th}/>;
@@ -2904,27 +2906,48 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     shortcuts: "linear-gradient(135deg,#374151,#6b7280)",
     account:   "linear-gradient(135deg,#C9A84C,#fbbf24)",
   };
+
+  const renderGrid = (items) => (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+      {items.map(tab=>(
+        <div key={tab.id} onClick={()=>setActiveTab(tab.id)}
+          style={{background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
+            borderRadius:16,padding:"18px 12px",cursor:"pointer",
+            boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
+            display:"flex",flexDirection:"column",alignItems:"center",
+            textAlign:"center",gap:8,minHeight:110,position:"relative"}}>
+          <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
+          <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
+          {tab.id==="trash"&&(trash||[]).length>0&&(
+            <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   return(
     <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
       <NavBar title="⚙️ Settings" onBack={onBack}/>
       <div style={{padding:"24px",maxWidth:800,margin:"0 auto"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-          {tabs.map(tab=>(
-            <div key={tab.id} onClick={()=>setActiveTab(tab.id)}
-              style={{background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
-                borderRadius:16,padding:"18px 12px",cursor:"pointer",
-                boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
-                display:"flex",flexDirection:"column",alignItems:"center",
-                textAlign:"center",gap:8,minHeight:110,position:"relative"}}>
-              <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
-              <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
-              {tab.id==="trash"&&(trash||[]).length>0&&(
-                <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
-              )}
+        {/* Main grid - all users */}
+        {renderGrid(tabs)}
+
+        {/* Admin only section */}
+        {isAdmin&&(
+          <div style={{marginTop:28}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{height:1,flex:1,background:"#e2e8f0"}}/>
+              <div style={{display:"flex",alignItems:"center",gap:6,background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:20,padding:"4px 14px"}}>
+                <span style={{fontSize:14}}>🔐</span>
+                <span style={{fontSize:12,fontWeight:700,color:"#dc2626"}}>Admin Only</span>
+              </div>
+              <div style={{height:1,flex:1,background:"#e2e8f0"}}/>
             </div>
-          ))}
-        </div>
+            {renderGrid(adminTabs)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2974,6 +2997,20 @@ export default function App() {
     cfg("users",setUsers,DEFAULT_USERS);
     cfg("sources",setSources,DEFAULT_SOURCES);
     cfg("customerTags",setCustomerTags,[]);
+    // Company profile
+    unsubs.push(onSnapshot(doc(db,"config","companyProfile"),snap=>{
+      if(snap.exists()) setCompanyProfile(snap.data());
+    },e=>console.error("companyProfile:",e)));
+    // Custom pipeline statuses
+    unsubs.push(onSnapshot(doc(db,"config","customStatuses"),snap=>{
+      if(snap.exists()&&snap.data().items?.length>0) setCustomStatuses(snap.data().items);
+      else setCustomStatuses(null);
+    },e=>console.error("customStatuses:",e)));
+    // Company notes - real time sync between all users
+    unsubs.push(onSnapshot(doc(db,"config","companyNotes"),snap=>{
+      if(snap.exists()) setCompanyNotes(snap.data().items||[]);
+      else setCompanyNotes([]);
+    },e=>console.error("companyNotes:",e)));
     setReady(true);
     return()=>unsubs.forEach(u=>u());
   },[]);
