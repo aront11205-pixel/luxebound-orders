@@ -278,7 +278,7 @@ function Loader() {
 // ══════════════════════════════════════════════════════════
 // LOGIN
 // ══════════════════════════════════════════════════════════
-function LoginScreen({ users, onLogin }) {
+function LoginScreen({ users, onLogin, companyLogo }) {
   const [email,setEmail]=useState(""); const [pass,setPass]=useState(""); const [err,setErr]=useState("");
   const login=()=>{const u=users.find(u=>u.email===email&&u.password===pass);if(u)onLogin(u);else setErr("Invalid email or password.");};
   const inp={width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"};
@@ -287,8 +287,8 @@ function LoginScreen({ users, onLogin }) {
       <div style={{width:"100%",maxWidth:420}}>
         <div style={{textAlign:"center",marginBottom:36}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
-            {users._companyLogo
-              ?<img src={users._companyLogo} alt="logo" style={{width:80,height:80,borderRadius:"50%",objectFit:"cover"}}/>
+            {companyLogo
+              ?<img src={companyLogo} alt="logo" style={{width:80,height:80,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.3)"}}/>
               :<Logo size={80}/>
             }
           </div>
@@ -472,7 +472,7 @@ function Filters({ filters, setFilters, albums, th, onClear, statusFilter, setSt
 // ══════════════════════════════════════════════════════════
 // ORDER CARD  (V5: progress bar, color border, waiting timer, quick status, photos, payment history)
 // ══════════════════════════════════════════════════════════
-function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus }) {
+function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus, onEditNote }) {
   const finalTotal=(Number(order.finalTotal)||Number(order.total)||0);
   const received=(order.payments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
   const profit=finalTotal-(Number(order.znoCost)||0);
@@ -524,12 +524,16 @@ function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus }) {
           </div>
         </div>
 
-        {/* Quick status dropdown */}
-        <div style={{marginBottom:8}}>
+        {/* Quick status dropdown + Note button */}
+        <div style={{marginBottom:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           <select value={order.status} onChange={e=>onQuickStatus&&onQuickStatus(order,e.target.value)}
             style={{fontSize:11,padding:"5px 10px",borderRadius:20,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontFamily:"system-ui,sans-serif",outline:"none"}}>
             {STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
           </select>
+          <button onClick={()=>onEditNote&&onEditNote(order)}
+            style={{fontSize:11,padding:"5px 12px",borderRadius:20,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",gap:4}}>
+            📝 {order.notes?"Edit Note":"Add Note"}
+          </button>
         </div>
 
         {/* Order Details */}
@@ -594,14 +598,10 @@ function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus }) {
           </div>
         )}
 
-        {/* Footer */}
+        {/* Footer - clean, no edit history */}
         <div style={{borderTop:"1px solid #f1f5f9",paddingTop:8}}>
           <div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}>
             📅 {fmtD(order.dateCreated)}{order.dateSentToZno&&` · Zno: ${fmtD(order.dateSentToZno)}`}
-            {order.createdBy&&<div style={{marginTop:2}}>👤 Created by <strong>{order.createdBy}</strong>{order.createdAt&&` · ${fmtDateTime(order.createdAt)}`}</div>}
-            {(order.editHistory||[]).map((e,i)=>(
-              <div key={i} style={{marginTop:2,color:"#b0bec5"}}>✏️ <strong>{e.who}</strong> · {fmtDateTime(e.when)}{e.summary&&` · ${e.summary}`}</div>
-            ))}
           </div>
           <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
             <button onClick={()=>onEdit(order)} style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
@@ -779,6 +779,48 @@ function WeeklySummary({ orders, onDismiss }) {
 
 
 // ══════════════════════════════════════════════════════════
+// V6.2: QUICK NOTE MODAL
+// ══════════════════════════════════════════════════════════
+function QuickNoteModal({ order, onSave, onClose, th }) {
+  const [note, setNote] = useState(order?.notes||"");
+  const [saving, setSaving] = useState(false);
+  const handleSave = async() => {
+    setSaving(true);
+    await onSave(order, note);
+    setSaving(false);
+    onClose();
+  };
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:20,padding:24,width:"100%",maxWidth:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:17,color:"#0f172a"}}>📝 Note</div>
+            <div style={{fontSize:12,color:"#64748b",marginTop:2}}>{order?.customerName}</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",color:"#94a3b8",padding:0,lineHeight:1}}>×</button>
+        </div>
+        <textarea
+          value={note}
+          onChange={e=>setNote(e.target.value)}
+          placeholder="Add a note about this order…"
+          rows={5}
+          autoFocus
+          style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",resize:"vertical",boxSizing:"border-box",marginBottom:14}}
+        />
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:"12px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{flex:2,padding:"12px",borderRadius:10,border:"none",background:saving?"#94a3b8":"linear-gradient(135deg,#18B978,#34d399)",color:"white",cursor:saving?"not-allowed":"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>
+            {saving?"Saving…":"💾 Save Note"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
 // EXPORT MODAL
 // ══════════════════════════════════════════════════════════
 function ExportModal({ orders, onClose, th }) {
@@ -819,8 +861,9 @@ function ExportModal({ orders, onClose, th }) {
 // ══════════════════════════════════════════════════════════
 // DASHBOARD  (V4)
 // ══════════════════════════════════════════════════════════
-function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,onQuickStatus,invoiceMap,th }) {
+function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,onQuickStatus,onEditNote,invoiceMap,activeStatuses,th }) {
   const [filters,setFilters]=useState({search:"",album:"",paid:"",vip:false,priority:false,pinned:false});
+  const [quickNoteOrder,setQuickNoteOrder]=useState(null);
   // V6: Daily digest + weekly summary
   const [showDigest,setShowDigest]=useState(()=>{
     const key=`lb_digest_${new Date().toDateString()}`;
@@ -891,7 +934,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
         {showDigest&&<DailyDigest orders={orders} onDismiss={dismissDigest} displayName={currentUser?.displayName||currentUser?.email?.split("@")[0]||"User"}/>}
         {showWeekly&&<WeeklySummary orders={orders} onDismiss={dismissWeekly}/>}
         <StatCards orders={orders} onFilterUnpaid={filterUnpaid}/>
-        <Pipeline orders={orders} statusFilter={statusFilter} setStatusFilter={setStatusFilter}/>
+        <Pipeline orders={orders} statusFilter={statusFilter} setStatusFilter={setStatusFilter} activeStatuses={activeStatuses}/>
         <FlagsSection orders={orders} onEdit={onEdit} onSnooze={onSnooze}/>
 
         {/* Collapsible Orders List */}
@@ -919,7 +962,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
                   <span style={{color:"white",fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>{selected.length} selected</span>
                   <select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)} style={{padding:"7px 10px",borderRadius:8,border:"none",fontSize:13,fontFamily:"system-ui,sans-serif",flex:1,minWidth:140,outline:"none"}}>
                     <option value="">Change status to…</option>
-                    {STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+                    {(activeStatuses||STATUSES).map(s=><option key={s} value={s}>{s}</option>)}
                   </select>
                   <button onClick={applyBulk} disabled={!bulkStatus} style={{padding:"8px 18px",borderRadius:8,border:"none",background:bulkStatus?GREEN:"#94a3b8",color:"white",cursor:bulkStatus?"pointer":"not-allowed",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",whiteSpace:"nowrap"}}>Apply</button>
                 </div>
@@ -933,7 +976,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
                       <input type="checkbox" checked={selected.includes(o.id)} onChange={()=>toggleSelect(o.id)} style={{marginTop:20,width:18,height:18,accentColor:BLUE,flexShrink:0,cursor:"pointer"}}/>
                     )}
                     <div style={{flex:1}}>
-                      <OrderCard order={{...o,invoiceNum:invoiceMap?.[o.id]||o.invoiceNum||""}} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onQuickStatus={onQuickStatus}/>
+                      <OrderCard order={{...o,invoiceNum:invoiceMap?.[o.id]||o.invoiceNum||""}} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onQuickStatus={onQuickStatus} onEditNote={o=>setQuickNoteOrder(o)}/>
                     </div>
                   </div>
                 ))
@@ -943,6 +986,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
         </div>
       </div>
       {showExport&&<ExportModal orders={orders} onClose={()=>setShowExport(false)} th={th}/>}
+      {quickNoteOrder&&<QuickNoteModal order={quickNoteOrder} onSave={onEditNote} onClose={()=>setQuickNoteOrder(null)} th={th}/>}
     </div>
   );
 }
@@ -1058,7 +1102,7 @@ function SmartReminder({ order, th }) {
   );
 }
 
-function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, customers, onSaveCustomer, sources, companyProfile, th }) {
+function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, customers, onSaveCustomer, sources, companyProfile, activeStatuses, th }) {
   const isEdit=!!order?.id;
   const [customerName,setCustomerName]=useState(order?.customerName||"");
   const [phone,setPhone]=useState(order?.phone||"");
@@ -1356,8 +1400,8 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
           </Field>
           <Field label="Status">
             <div style={{display:"flex",flexWrap:"wrap",gap:7,marginTop:4}}>
-              {STATUSES.map(s=>{
-                const isDoneBlock=s==="Order Done"&&!paid;
+              {(activeStatuses||STATUSES).map(s=>{
+                const isDoneBlock=s===(activeStatuses||STATUSES).slice(-1)[0]&&!paid;
                 return(
                   <button key={s} onClick={()=>handleStatus(s)} title={isDoneBlock?"Mark as Paid first":undefined} style={{padding:"6px 12px",borderRadius:20,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif",background:status===s?BLUE:isDoneBlock?"#f1f5f9":"#f1f5f9",color:status===s?"white":isDoneBlock?"#cbd5e1":"#475569",border:`1.5px solid ${status===s?BLUE:"transparent"}`,opacity:isDoneBlock?.6:1}}>{s}</button>
                 );
@@ -2086,6 +2130,82 @@ function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) 
 
 
 // ══════════════════════════════════════════════════════════
+// V6.2: PIPELINE EDITOR TAB
+// ══════════════════════════════════════════════════════════
+function PipelineTab({ customStatuses, onSave, th }) {
+  const DEFAULT = ["New Order","Sent for First Look","Waiting for Changes","Waiting for Pictures",
+    "Waiting for Approval","Waiting to be Ordered","Ordered","In Production","Shipped","Delivered","Order Done"];
+  const [items, setItems] = useState(customStatuses||[...DEFAULT]);
+  const [newItem, setNewItem] = useState("");
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const inp = iStyle(th);
+
+  const update = u => setItems(u);
+  const add = () => {
+    if(!newItem.trim()||items.includes(newItem.trim())) return;
+    setItems(prev=>[...prev, newItem.trim()]);
+    setNewItem("");
+  };
+  const remove = i => {
+    if(items.length<=2){alert("You need at least 2 statuses.");return;}
+    setItems(prev=>prev.filter((_,idx)=>idx!==i));
+  };
+  const moveUp = i => { if(i===0) return; const u=[...items]; [u[i-1],u[i]]=[u[i],u[i-1]]; setItems(u); };
+  const moveDown = i => { if(i===items.length-1) return; const u=[...items]; [u[i],u[i+1]]=[u[i+1],u[i]]; setItems(u); };
+  const onDragStart = i => setDragIdx(i);
+  const onDragOver = (e,i) => { e.preventDefault(); setOverIdx(i); };
+  const onDrop = i => {
+    if(dragIdx===null||dragIdx===i){setDragIdx(null);setOverIdx(null);return;}
+    const u=[...items]; const[moved]=u.splice(dragIdx,1); u.splice(i,0,moved);
+    setItems(u); setDragIdx(null); setOverIdx(null);
+  };
+  const handleSave = () => {
+    onSave(items);
+    setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+  };
+  const resetDefaults = () => {
+    if(window.confirm("Reset pipeline to default statuses? This will remove any custom statuses.")) {
+      setItems([...DEFAULT]);
+      onSave([]);
+    }
+  };
+
+  return(
+    <div>
+      <div style={{fontSize:13,color:"#64748b",marginBottom:14}}>Drag to reorder. Add or remove statuses. <strong>Note:</strong> "Order Done" should always be last.</div>
+      {items.map((item,i)=>(
+        <div key={i} draggable onDragStart={()=>onDragStart(i)} onDragOver={e=>onDragOver(e,i)} onDrop={()=>onDrop(i)} onDragEnd={()=>{setDragIdx(null);setOverIdx(null);}}
+          style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,background:th.card,borderRadius:10,padding:"10px 14px",border:`1.5px solid ${overIdx===i&&dragIdx!==i?"#5271FF":th.border}`,opacity:dragIdx===i?.4:1,cursor:"grab"}}>
+          <span style={{color:"#94a3b8",fontSize:16,userSelect:"none"}}>⠿</span>
+          <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+            <button onClick={()=>moveUp(i)} disabled={i===0} style={{background:"none",border:"none",cursor:i===0?"not-allowed":"pointer",color:i===0?"#cbd5e1":"#5271FF",fontSize:12,padding:"1px 4px",lineHeight:1}}>▲</button>
+            <button onClick={()=>moveDown(i)} disabled={i===items.length-1} style={{background:"none",border:"none",cursor:i===items.length-1?"not-allowed":"pointer",color:i===items.length-1?"#cbd5e1":"#5271FF",fontSize:12,padding:"1px 4px",lineHeight:1}}>▼</button>
+          </div>
+          <input value={item} onChange={e=>update(items.map((x,idx)=>idx===i?e.target.value:x))}
+            style={{...inp,flex:1,padding:"8px 10px",fontSize:13}}/>
+          <button onClick={()=>remove(i)} style={{padding:"8px 12px",borderRadius:8,border:"none",background:"#ef4444",color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>✕</button>
+        </div>
+      ))}
+      <div style={{display:"flex",gap:8,marginTop:12,marginBottom:16}}>
+        <input value={newItem} onChange={e=>setNewItem(e.target.value)} placeholder="New status name…"
+          style={{...inp,flex:1,padding:"9px 12px",fontSize:13}} onKeyDown={e=>e.key==="Enter"&&add()}/>
+        <button onClick={add} style={{padding:"9px 16px",borderRadius:8,border:"none",background:"#5271FF",color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button>
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={resetDefaults} style={{flex:1,padding:"12px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Reset Defaults</button>
+        <button onClick={handleSave} style={{flex:2,padding:"12px",borderRadius:10,border:"none",background:saved?"#18B978":"#5271FF",color:"white",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif",transition:"background .2s"}}>
+          {saved?"✅ Saved!":"💾 Save Pipeline"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
 // V6: COMPANY PROFILE TAB
 // ══════════════════════════════════════════════════════════
 function CompanyProfileTab({ profile, onSave, th }) {
@@ -2384,9 +2504,10 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,da
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
+    {id:"pipeline",icon:"🔄",label:"Pipeline",desc:"Edit order statuses & stages"},
     {id:"albums",icon:"📚",label:"Albums",desc:"Manage album types & prices"},
     {id:"upgrades",icon:"✨",label:"Upgrades",desc:"Manage add-ons & prices"},
     {id:"payments",icon:"💳",label:"Payments",desc:"Payment methods"},
@@ -2406,6 +2527,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     const tab=tabs.find(t=>t.id===activeTab);
     const content=()=>{
       switch(activeTab){
+        case "pipeline":  return <PipelineTab customStatuses={customStatuses} onSave={onSaveCustomStatuses} th={th}/>;
         case "albums":    return <ListEditor items={albums} onSave={onSaveAlbums} th={th} placeholder="Album name"/>;
         case "upgrades":  return <ListEditor items={upgrades} onSave={onSaveUpgrades} th={th} placeholder="Upgrade name"/>;
         case "payments":  return <PaymentsTab paymentMethods={paymentMethods} onSave={onSavePayments} th={th}/>;
@@ -2467,6 +2589,7 @@ export default function App() {
   const [sources,setSources]=useState(DEFAULT_SOURCES);
   const [customerTags,setCustomerTags]=useState([]);
   const [companyProfile,setCompanyProfile]=useState(null);
+  const [customStatuses,setCustomStatuses]=useState(null); // null = use defaults
   const [lang,setLang]=useState(()=>lsGet("lb_lang")||"en");
   const [darkMode,setDarkMode]=useState(false);
   const [invoiceMap,setInvoiceMap]=useState({});
@@ -2551,6 +2674,10 @@ export default function App() {
     await setDoc(doc(db,"orders",order.id),clean({...order,snoozedUntil:until}));
   };
 
+  const saveNote=async(order,note)=>{
+    await setDoc(doc(db,"orders",order.id),clean({...order,notes:note}));
+  };
+
   const quickStatus=async(order,newStatus)=>{
     if(newStatus==="Order Done"&&!order.paid){alert('Please mark as Paid before setting "Order Done".');return;}
     const who=currentUser?.displayName||currentUser?.email||"Unknown";
@@ -2592,6 +2719,11 @@ export default function App() {
   const saveSources=async(items)=>await saveConfig("sources",items);
   const saveCustomerTags=async(items)=>await saveConfig("customerTags",items);
   const togLang=l=>{setLang(l);lsSet("lb_lang",l);};
+  const saveCustomStatuses=async(items)=>{
+    await setDoc(doc(db,"config","customStatuses"),{items});
+    setCustomStatuses(items.length>0?items:null);
+  };
+
   const saveCompanyProfile=async(profile)=>{
     await setDoc(doc(db,"config","companyProfile"),clean(profile));
     setCompanyProfile(profile);
@@ -2648,7 +2780,7 @@ export default function App() {
       onSave={saveOrder} onDelete={deleteOrder}
       onCancel={()=>{setView("dashboard");setEditingOrder(null);}}
       currentUser={currentUser} customers={customers} onSaveCustomer={saveCustomer}
-      sources={sources} companyProfile={companyProfile} th={theme}/>
+      sources={sources} companyProfile={companyProfile} activeStatuses={customStatuses||STATUSES} th={theme}/>
   );
 
   if(view==="settings") return(
@@ -2664,6 +2796,7 @@ export default function App() {
       trash={trash}             onRestoreOrder={restoreOrder} onDeletePermanent={deletePermanent}
       companyProfile={companyProfile} onSaveCompanyProfile={saveCompanyProfile}
       onRestoreBackup={restoreBackup}
+      customStatuses={customStatuses} onSaveCustomStatuses={saveCustomStatuses}
       lang={lang}               onToggleLang={togLang}
       darkMode={darkMode}       onToggleDark={togDark}
       onChangePw={changePw}     onUpdateDisplayName={updateDisplayName} onUpdatePhoto={updatePhoto}
@@ -2684,6 +2817,8 @@ export default function App() {
       onSnooze={snoozeOrder}
       onBulkStatus={bulkStatus}
       invoiceMap={invoiceMap}
+      activeStatuses={customStatuses||STATUSES}
+      onEditNote={saveNote}
       onSettings={()=>setView("settings")}
       onSignOut={signOut}
       showExport={showExport} setShowExport={setShowExport}
