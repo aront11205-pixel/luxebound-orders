@@ -124,6 +124,16 @@ function assignInvoiceNumbers(orders) {
 }
 
 
+// V8: Default album sizes
+const DEFAULT_ALBUM_SIZES = [
+  {id:"sz1",name:'6×6'},{id:"sz2",name:'8×8'},{id:"sz3",name:'10×10'},{id:"sz4",name:'12×12'},
+];
+// V8: Default cover types
+const DEFAULT_COVER_TYPES = [
+  {id:"ct1",name:"Leather"},{id:"ct2",name:"Acrylic"},{id:"ct3",name:"Velvet"},
+  {id:"ct4",name:"Linen"},{id:"ct5",name:"Fabric"},{id:"ct6",name:"Custom"},
+];
+
 const STATUSES = [
   "New Order","Sent for First Look","Waiting for Changes","Waiting for Pictures",
   "Waiting for Approval","Waiting to be Ordered","Ordered","In Production",
@@ -181,6 +191,13 @@ const clean = (obj) => {
 };
 
 // V5: Compress image to base64 for photo attachments
+// V8: Order age in days
+const orderAge = o => {
+  if(!o.dateCreated) return 0;
+  if(o.status==="Order Done" && o.doneAt) return Math.floor((new Date(o.doneAt)-new Date(o.dateCreated))/864e5);
+  return Math.floor((Date.now()-new Date(o.dateCreated).getTime())/864e5);
+};
+
 const compressImage = (file, maxPx=700, quality=0.72) => new Promise((resolve, reject) => {
   const img = new Image();
   const url = URL.createObjectURL(file);
@@ -472,7 +489,7 @@ function Filters({ filters, setFilters, albums, th, onClear, statusFilter, setSt
 // ══════════════════════════════════════════════════════════
 // ORDER CARD  (V5: progress bar, color border, waiting timer, quick status, photos, payment history)
 // ══════════════════════════════════════════════════════════
-function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus, onEditNote }) {
+function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus, onEditNote, onViewCustomer }) {
   const finalTotal=(Number(order.finalTotal)||Number(order.total)||0);
   const received=(order.payments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
   const profit=finalTotal-(Number(order.znoCost)||0);
@@ -497,14 +514,21 @@ function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus, onEditNote }
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap"}}>
-              <div style={{fontWeight:700,fontSize:16,color:"#0f172a"}}>{order.customerName}</div>
+              <div onClick={e=>{e.stopPropagation();onViewCustomer&&onViewCustomer(order.customerName);}} style={{fontWeight:700,fontSize:16,color:"#0f172a",cursor:onViewCustomer?"pointer":"default",textDecoration:onViewCustomer?"underline":"none",textDecorationStyle:"dotted"}}>{order.customerName}</div>
               {order.invoiceNum&&<span style={{fontSize:10,color:"#94a3b8",fontFamily:"monospace",background:"#f1f5f9",padding:"1px 6px",borderRadius:4}}>{order.invoiceNum}</span>}
               {order.priority&&<span style={{fontSize:10,fontWeight:700,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:20}}>⚡ PRIORITY</span>}
               {order.vip&&<span style={{fontSize:10,fontWeight:700,background:"#fdf4ff",color:"#7e22ce",padding:"2px 7px",borderRadius:20}}>⭐ VIP</span>}
               {order.refunded&&<span style={{fontSize:10,fontWeight:700,background:"#fef2f2",color:RED,padding:"2px 7px",borderRadius:20}}>↩️ Refunded</span>}
               {order.manualFlag&&FLAG_DEFS[order.manualFlag]&&<span style={{fontSize:11}}>{FLAG_DEFS[order.manualFlag].icon}</span>}
+              <span style={{fontSize:10,fontWeight:700,background:order.status==="Order Done"?"#bbf7d0":"#f1f5f9",color:order.status==="Order Done"?"#14532d":"#64748b",padding:"2px 7px",borderRadius:20}}>⏱ {orderAge(order)}d</span>
             </div>
             <div style={{fontSize:12,color:"#64748b"}}>{order.phone}</div>
+            {(order.albumSize||order.coverType)&&(
+              <div style={{fontSize:11,color:"#64748b",marginTop:2,display:"flex",gap:8}}>
+                {order.albumSize&&<span>📐 {order.albumSize}</span>}
+                {order.coverType&&<span>🎨 {order.coverType}</span>}
+              </div>
+            )}
             {order.deadline&&<div style={{fontSize:11,color:RED,marginTop:2,fontWeight:600}}>🗓 Deadline: {fmtD(order.deadline)}</div>}
             {order.paymentDueDate&&!order.paid&&(
               <div style={{fontSize:11,color:new Date(order.paymentDueDate)<new Date()?RED:AMBER,marginTop:2,fontWeight:600}}>
@@ -604,6 +628,10 @@ function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus, onEditNote }
             📅 {fmtD(order.dateCreated)}{order.dateSentToZno&&` · Zno: ${fmtD(order.dateSentToZno)}`}
           </div>
           <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button onClick={()=>{
+              const txt=`Customer: ${order.customerName}\nPhone: ${order.phone||""}\nAlbum: ${(order.selectedAlbums||[]).map(a=>a.albumType).join(", ")||order.albumType||""}\nTotal: ${fmt$(order.finalTotal||order.total)}\nPaid: ${order.paid?"Yes":"No"}\nStatus: ${order.status}${order.notes?`\nNotes: ${order.notes}`:""}`;
+              navigator.clipboard?.writeText(txt).catch(()=>{});
+            }} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>📋</button>
             <button onClick={()=>onEdit(order)} style={{padding:"6px 16px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Edit</button>
             <button onClick={()=>onDelete(order)} style={{padding:"6px 16px",borderRadius:8,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Delete</button>
           </div>
@@ -1007,6 +1035,199 @@ function DualCalendar() {
 
 
 // ══════════════════════════════════════════════════════════
+// V8: THANK YOU MESSAGE POPUP
+// ══════════════════════════════════════════════════════════
+function ThankYouPopup({ order, lang, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const name = (order?.customerName||"").split(" ")[0] || "there";
+  const msgEN = `Hi ${name}!\n\nThank you so much for choosing LuxeBound Albums! Your order is now complete and we hope you absolutely love your beautiful album.\n\nIt was a pleasure working with you! We would love to have you back for your next album 😊\n\nWarm regards,\nLuxeBound Albums`;
+  const msgYI = `שלום ${name}!\n\nא גרויסן דאנק פאר קויפן ביי LuxeBound Albums! אייער באשטעלונג איז פארטיק און מיר האפן אז איר וועט ליבן אייער שיינעם אלבאם.\n\nא פארגעניגן צו ארבעטן מיט אייך! מיר וואלטן גערן זען אייך ווידער 😊\n\nמיט ווארעמע גריסן,\nLuxeBound Albums`;
+  const msg = lang==="yi" ? msgYI : msgEN;
+  const copy = () => { navigator.clipboard?.writeText(msg).catch(()=>{}); setCopied(true); setTimeout(()=>setCopied(false),2000); };
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:16}}>
+      <div style={{background:"white",borderRadius:20,padding:28,width:"100%",maxWidth:440,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{textAlign:"center",marginBottom:16}}>
+          <div style={{fontSize:40,marginBottom:8}}>🎉</div>
+          <div style={{fontWeight:700,fontSize:18,color:"#0f172a"}}>Order Complete!</div>
+          <div style={{fontSize:13,color:"#64748b",marginTop:4}}>Send a thank you message to {order?.customerName}</div>
+        </div>
+        <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#334155",lineHeight:1.6,whiteSpace:"pre-wrap",border:"1px solid #e2e8f0",marginBottom:14,maxHeight:180,overflowY:"auto"}}>{msg}</div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:"12px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Skip</button>
+          <button onClick={copy} style={{flex:2,padding:"12px",borderRadius:10,border:"none",background:copied?GREEN:BLUE,color:"white",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif",transition:"background .2s"}}>
+            {copied?"✅ Copied!":"📋 Copy Message"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
+// V8: PRICE CALCULATOR
+// ══════════════════════════════════════════════════════════
+function PriceCalculator({ albums, upgrades, onClose }) {
+  const [selAlbum, setSelAlbum] = useState("");
+  const [selUpgrades, setSelUpgrades] = useState({});
+  const [discount, setDiscount] = useState("");
+  const albumPrice = albums.find(a=>a.name===selAlbum)?.price||0;
+  const upgTotal = upgrades.reduce((s,u)=>{const q=Number(selUpgrades[u.id]||0);return s+(q>0?u.price*q:0);},0);
+  const subtotal = albumPrice + upgTotal;
+  const discAmt = Number(discount)||0;
+  const total = Math.max(0, subtotal - discAmt);
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:16}}>
+      <div style={{background:"white",borderRadius:20,padding:24,width:"100%",maxWidth:440,boxShadow:"0 20px 60px rgba(0,0,0,0.3)",maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:18,color:"#0f172a"}}>💰 Price Calculator</div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",color:"#94a3b8",padding:0,lineHeight:1}}>×</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.6px"}}>Album</div>
+            <select value={selAlbum} onChange={e=>setSelAlbum(e.target.value)} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif"}}>
+              <option value="">Select album…</option>
+              {albums.map(a=><option key={a.id} value={a.name}>{a.name} — {fmt$(a.price)}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.6px"}}>Add-ons</div>
+            {upgrades.map(u=>{
+              const checked=(selUpgrades[u.id]||0)>0;
+              return(
+                <label key={u.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"8px 12px",borderRadius:8,background:checked?"#eff2ff":"#f8fafc",border:`1.5px solid ${checked?BLUE+"55":"#e2e8f0"}`,cursor:"pointer"}}>
+                  <input type="checkbox" checked={checked} onChange={e=>setSelUpgrades(p=>({...p,[u.id]:e.target.checked?1:0}))} style={{accentColor:BLUE,width:16,height:16}}/>
+                  <span style={{flex:1,fontSize:13,color:"#0f172a"}}>{u.name}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:AMBER}}>{fmt$(u.price)}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.6px"}}>Discount $</div>
+            <input type="number" value={discount} onChange={e=>setDiscount(e.target.value)} placeholder="0" style={{width:"100%",padding:"10px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}/>
+          </div>
+        </div>
+        <div style={{marginTop:20,background:`linear-gradient(135deg,${NAVY},#1e3a8a)`,borderRadius:14,padding:"16px 20px"}}>
+          {[
+            {label:"Subtotal",val:fmt$(subtotal)},
+            ...(discAmt>0?[{label:"Discount",val:`-${fmt$(discAmt)}`}]:[]),
+          ].map(({label,val})=>(
+            <div key={label} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"rgba(255,255,255,0.75)",marginBottom:6}}><span>{label}</span><span>{val}</span></div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:20,fontWeight:800,color:"white",borderTop:"1px solid rgba(255,255,255,0.2)",paddingTop:10,marginTop:4}}>
+            <span>Total</span><span>{fmt$(total)}</span>
+          </div>
+        </div>
+        <button onClick={onClose} style={{width:"100%",marginTop:14,padding:"12px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
+// V8: CUSTOMER FULL PROFILE PAGE
+// ══════════════════════════════════════════════════════════
+function CustomerProfile({ customer, orders, onClose, onEdit, th }) {
+  const custOrders = orders.filter(o=>(o.customerName||"").toLowerCase()===(customer?.name||"").toLowerCase());
+  const activeOrders = custOrders.filter(o=>o.status!=="Order Done");
+  const doneOrders = custOrders.filter(o=>o.status==="Order Done");
+  const lifetime = custOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
+  const outstanding = custOrders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
+  const rating = customer?.rating||0;
+  const STARS = [1,2,3,4,5];
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:16}}>
+      <div style={{background:"#f1f5f9",borderRadius:20,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        {/* Header */}
+        <div style={{background:`linear-gradient(135deg,${NAVY},#1e3a8a)`,borderRadius:"20px 20px 0 0",padding:"24px 24px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontWeight:800,fontSize:22,color:"white"}}>{customer?.name}</div>
+              {customer?.phone&&<div style={{fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:4}}>{customer.phone}</div>}
+              {customer?.email&&<div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:2}}>{customer.email}</div>}
+              {customer?.source&&<div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:4}}>📍 {customer.source}</div>}
+            </div>
+            <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"white",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>
+          </div>
+          {customer?.vip&&<span style={{display:"inline-block",marginTop:10,fontSize:11,fontWeight:700,background:"rgba(255,255,255,0.2)",color:"white",padding:"3px 10px",borderRadius:20}}>⭐ VIP Customer</span>}
+          {/* Star rating */}
+          <div style={{display:"flex",gap:4,marginTop:12,alignItems:"center"}}>
+            {STARS.map(s=>(
+              <button key={s} onClick={()=>onEdit({...customer,rating:s})} style={{background:"none",border:"none",cursor:"pointer",fontSize:22,padding:0,lineHeight:1,color:s<=rating?"#fbbf24":"rgba(255,255,255,0.3)"}}>★</button>
+            ))}
+            {rating>0&&<span style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginLeft:4}}>{rating}/5 private rating</span>}
+          </div>
+        </div>
+        {/* Stats */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,padding:"16px 16px 0"}}>
+          {[
+            {label:"Total Orders",val:custOrders.length,color:BLUE},
+            {label:"Lifetime Value",val:fmt$(lifetime),color:GREEN},
+            {label:"Outstanding",val:fmt$(outstanding),color:outstanding>0?RED:"#94a3b8"},
+          ].map(({label,val,color})=>(
+            <div key={label} style={{background:"white",borderRadius:12,padding:"12px 10px",textAlign:"center",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+              <div style={{fontSize:16,fontWeight:800,color}}>{val}</div>
+              <div style={{fontSize:10,color:"#64748b",marginTop:3,fontWeight:600}}>{label}</div>
+            </div>
+          ))}
+        </div>
+        {/* Note */}
+        {customer?.note&&(
+          <div style={{margin:"12px 16px 0",background:"#fff7ed",borderRadius:10,padding:"10px 14px",border:"1px solid #fed7aa"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:4}}>📝 Note</div>
+            <div style={{fontSize:13,color:"#92400e"}}>{customer.note}</div>
+          </div>
+        )}
+        {/* Tags */}
+        {(customer?.tags||[]).length>0&&(
+          <div style={{margin:"10px 16px 0",display:"flex",gap:6,flexWrap:"wrap"}}>
+            {(customer.tags||[]).map(tag=><span key={tag} style={{fontSize:11,background:"#eff2ff",color:BLUE,padding:"3px 10px",borderRadius:20,fontWeight:600}}>{tag}</span>)}
+          </div>
+        )}
+        {/* Active Orders */}
+        <div style={{padding:"14px 16px 0"}}>
+          <div style={{fontWeight:700,fontSize:13,color:"#0f172a",marginBottom:8}}>📦 Active Orders ({activeOrders.length})</div>
+          {activeOrders.length===0&&<div style={{fontSize:12,color:"#94a3b8",padding:"8px 0"}}>No active orders</div>}
+          {activeOrders.map(o=>(
+            <div key={o.id} style={{background:"white",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:"#0f172a"}}>{(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType).filter(Boolean).join(", ")}</div>
+                <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{fmtD(o.dateCreated)} · <span style={{color:o.paid?GREEN:RED}}>{o.paid?"Paid":"Unpaid"}</span></div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:13,fontWeight:700,color:BLUE}}>{fmt$(o.finalTotal||o.total)}</div>
+                <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{o.status}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Done Orders */}
+        {doneOrders.length>0&&(
+          <div style={{padding:"8px 16px 16px"}}>
+            <div style={{fontWeight:700,fontSize:13,color:"#0f172a",marginBottom:8}}>✅ Completed Orders ({doneOrders.length})</div>
+            {doneOrders.map(o=>(
+              <div key={o.id} style={{background:"white",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",opacity:0.8}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:"#0f172a"}}>{(o.selectedAlbums||[{albumType:o.albumType}]).map(a=>a.albumType).filter(Boolean).join(", ")}</div>
+                  <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{fmtD(o.dateCreated)}</div>
+                </div>
+                <div style={{fontSize:13,fontWeight:700,color:"#64748b"}}>{fmt$(o.finalTotal||o.total)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
 // V6.2: QUICK NOTE MODAL
 // ══════════════════════════════════════════════════════════
 function QuickNoteModal({ order, onSave, onClose, th }) {
@@ -1089,9 +1310,12 @@ function ExportModal({ orders, onClose, th }) {
 // ══════════════════════════════════════════════════════════
 // DASHBOARD  (V4)
 // ══════════════════════════════════════════════════════════
-function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,onQuickStatus,onEditNote,invoiceMap,activeStatuses,th }) {
+function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilter,setStatusFilter,onNew,onEdit,onDelete,onPin,onSnooze,onSettings,onSignOut,showExport,setShowExport,currentUser,onBulkStatus,onQuickStatus,onEditNote,invoiceMap,activeStatuses,lang,th }) {
   const [filters,setFilters]=useState({search:"",album:"",paid:"",vip:false,priority:false,pinned:false});
   const [quickNoteOrder,setQuickNoteOrder]=useState(null);
+  const [showCalc,setShowCalc]=useState(false);
+  const [showThankYou,setShowThankYou]=useState(null);
+  const [viewCustomer,setViewCustomer]=useState(null);
   // V6: Daily digest + weekly summary
   const [showDigest,setShowDigest]=useState(()=>{
     const key=`lb_digest_${new Date().toDateString()}`;
@@ -1152,6 +1376,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="success" sm onClick={onNew} style={{padding:"8px 18px",fontSize:13}}>+ New Order</Btn>
+          <Btn variant="ghost" sm onClick={()=>setShowCalc(true)} style={{padding:"8px 18px",fontSize:13}}>💰 Calc</Btn>
           <Btn variant="ghost" sm onClick={()=>setShowExport(true)} style={{padding:"8px 18px",fontSize:13}}>📊 Export</Btn>
           <Btn variant="ghost" sm onClick={onSettings} style={{padding:"8px 18px",fontSize:13}}>⚙️</Btn>
           <Btn variant="ghost" sm onClick={onSignOut} style={{padding:"8px 18px",fontSize:13}}>Sign Out</Btn>
@@ -1206,7 +1431,7 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
                       <input type="checkbox" checked={selected.includes(o.id)} onChange={()=>toggleSelect(o.id)} style={{marginTop:20,width:18,height:18,accentColor:BLUE,flexShrink:0,cursor:"pointer"}}/>
                     )}
                     <div style={{flex:1}}>
-                      <OrderCard order={{...o,invoiceNum:invoiceMap?.[o.id]||o.invoiceNum||""}} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onQuickStatus={onQuickStatus} onEditNote={o=>setQuickNoteOrder(o)}/>
+                      <OrderCard order={{...o,invoiceNum:invoiceMap?.[o.id]||o.invoiceNum||""}} onEdit={onEdit} onDelete={onDelete} onPin={onPin} onQuickStatus={onQuickStatus} onEditNote={o=>setQuickNoteOrder(o)} onViewCustomer={name=>setViewCustomer((customers||[]).find(c=>c.name.toLowerCase()===name.toLowerCase())||{name})}/>
                     </div>
                   </div>
                 ))
@@ -1217,6 +1442,9 @@ function Dashboard({ orders,albums,statusFilter,setStatusFilter,onNew,onEdit,onD
       </div>
       {showExport&&<ExportModal orders={orders} onClose={()=>setShowExport(false)} th={th}/>}
       {quickNoteOrder&&<QuickNoteModal order={quickNoteOrder} onSave={onEditNote} onClose={()=>setQuickNoteOrder(null)} th={th}/>}
+      {showCalc&&<PriceCalculator albums={albums} upgrades={upgrades} onClose={()=>setShowCalc(false)}/>
+      {viewCustomer&&<CustomerProfile customer={viewCustomer} orders={orders} onClose={()=>setViewCustomer(null)} onEdit={c=>{onSaveCustomer([c,...(customers||[]).filter(x=>x.id!==c.id)]);setViewCustomer(c);}} th={th}/>}}
+      {showThankYou&&<ThankYouPopup order={showThankYou} lang={lang} onClose={()=>setShowThankYou(null)}/>}
     </div>
   );
 }
@@ -1332,7 +1560,7 @@ function SmartReminder({ order, th }) {
   );
 }
 
-function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, currentUser, customers, onSaveCustomer, sources, companyProfile, activeStatuses, th }) {
+function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, onDelete, onDuplicate, currentUser, customers, onSaveCustomer, sources, companyProfile, activeStatuses, albumSizes, coverTypes, lang, th }) {
   const isEdit=!!order?.id;
   const [customerName,setCustomerName]=useState(order?.customerName||"");
   const [phone,setPhone]=useState(order?.phone||"");
@@ -1353,6 +1581,9 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   const [refundAmount,setRefundAmount]=useState(order?.refundAmount||"");
   // V6: Follow-up date
   const [followUpDate,setFollowUpDate]=useState(order?.followUpDate||"");
+  // V8: Album size + cover type
+  const [albumSize,setAlbumSize]=useState(order?.albumSize||"");
+  const [coverType,setCoverType]=useState(order?.coverType||"");
   const [nameAC,setNameAC]=useState([]); // autocomplete suggestions
 
   const initAlbums=order?.selectedAlbums||(order?.albumType?[{id:uid(),albumType:order.albumType,albumPrice:order.albumPrice||0}]:[{id:uid(),albumType:"",albumPrice:0}]);
@@ -1455,6 +1686,8 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         paymentDueDate:paymentDueDate||"",
         refunded,refundAmount:refunded?Number(refundAmount)||0:0,
         followUpDate:followUpDate||"",
+        albumSize:albumSize||"",
+        coverType:coverType||"",
         selectedAlbums:selAlbums,albumType:selAlbums[0]?.albumType||"",albumPrice:selAlbums[0]?.albumPrice||0,
         selectedUpgrades:selUpg,upgradeNames,upgradePrices,
         total:subtotal,discountType:discType,discountValue:Number(discVal)||0,finalTotal,
@@ -1535,6 +1768,25 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         </div>
 
         {/* Add-ons */}
+        {/* Album Size + Cover Type */}
+        <div style={sec}>
+          <div style={{fontWeight:700,fontSize:15,color:"#0f172a",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #f1f5f9"}}>📐 Album Details</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <Field label="Album Size">
+              <select value={albumSize} onChange={e=>setAlbumSize(e.target.value)} style={inp}>
+                <option value="">Select size…</option>
+                {(albumSizes||DEFAULT_ALBUM_SIZES).map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Cover Type">
+              <select value={coverType} onChange={e=>setCoverType(e.target.value)} style={inp}>
+                <option value="">Select cover…</option>
+                {(coverTypes||DEFAULT_COVER_TYPES).map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+            </Field>
+          </div>
+        </div>
+
         <div style={sec}>
           <div style={{fontWeight:700,fontSize:15,color:"#0f172a",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #f1f5f9"}}>✨ Add-ons</div>
           {upgrades.map(u=>{
@@ -1745,6 +1997,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
             {saving?"Saving…":isEdit?"💾 Save Changes":"✅ Create Order"}
           </button>
           {isEdit&&onDelete&&<button onClick={()=>onDelete(order)} style={{flex:1,padding:"14px",borderRadius:10,border:"none",background:RED,color:"white",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>🗑️ Delete</button>}
+          {isEdit&&onDuplicate&&<button onClick={()=>onDuplicate(order)} style={{flex:1,padding:"14px",borderRadius:10,border:`1.5px solid ${BLUE}`,background:"white",color:BLUE,cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>📋 Duplicate</button>}
         </div>
       </div>
     </div>
@@ -1868,7 +2121,7 @@ function UsersTab({users,onSave,th}){
 }
 
 // Business Insights Tab (V6: adds best upgrade, profit by album, customer ranking, year vs year, goal tracker)
-function InsightsTab({ orders, th }) {
+function InsightsTab({ orders, customers, th }) {
   const total=orders.length;
   const [chartYear,setChartYear]=useState(new Date().getFullYear());
   const [monthlyGoal,setMonthlyGoal]=useState(()=>Number(localStorage.getItem("lb_monthly_goal")||0));
@@ -2150,7 +2403,7 @@ function InsightsTab({ orders, th }) {
       </div>
 
       {/* Average Time Per Status */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`}}>
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
         <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>⏱ Average Time Per Status</div>
         {statusTimes.map((s,i)=>(
           <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<statusTimes.length-1?"1px solid #f1f5f9":"none"}}>
@@ -2165,6 +2418,123 @@ function InsightsTab({ orders, th }) {
           </div>
         ))}
       </div>
+
+      {/* Referral % breakdown (Side B) */}
+      {(() => {
+        const sourceData = orders.reduce((acc,o) => {
+          const src = customers?.find(c=>c.name.toLowerCase()===(o.customerName||"").toLowerCase())?.source||"Unknown";
+          acc[src]=(acc[src]||0)+1; return acc;
+        },{});
+        const total2 = Object.values(sourceData).reduce((s,v)=>s+v,0);
+        const sorted = Object.entries(sourceData).sort((a,b)=>b[1]-a[1]);
+        if(sorted.length===0) return null;
+        return(
+          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📍 Orders by Referral Source</div>
+            {sorted.map(([src,cnt],i)=>{
+              const pct=total2>0?Math.round((cnt/total2)*100):0;
+              const colors=["#5271FF","#18B978","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#14b8a6"];
+              return(
+                <div key={src} style={{marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{fontWeight:600,color:th.text}}>{src}</span><span style={{color:th.subtext}}>{cnt} orders · {pct}%</span></div>
+                  <div style={{height:8,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:8,width:`${pct}%`,background:colors[i%colors.length],borderRadius:4,transition:"width .4s"}}/></div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Album Size analytics (Side D) */}
+      {(() => {
+        const sizeData = orders.reduce((acc,o)=>{ if(o.albumSize){acc[o.albumSize]=(acc[o.albumSize]||0)+1;} return acc; },{});
+        const coverData = orders.reduce((acc,o)=>{ if(o.coverType){acc[o.coverType]=(acc[o.coverType]||0)+1;} return acc; },{});
+        const hasData = Object.keys(sizeData).length>0||Object.keys(coverData).length>0;
+        if(!hasData) return null;
+        const totalS=Object.values(sizeData).reduce((s,v)=>s+v,0);
+        const totalC=Object.values(coverData).reduce((s,v)=>s+v,0);
+        return(
+          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📐 Album Size & Cover Analytics</div>
+            {Object.keys(sizeData).length>0&&(<div style={{marginBottom:14}}><div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:8,textTransform:"uppercase"}}>Sizes</div>{Object.entries(sizeData).sort((a,b)=>b[1]-a[1]).map(([s,c])=>(<div key={s} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:600,color:th.text}}>{s}</span><span style={{color:th.subtext}}>{Math.round((c/totalS)*100)}%</span></div><div style={{height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${Math.round((c/totalS)*100)}%`,background:BLUE,borderRadius:4}}/></div></div>))}</div>)}
+            {Object.keys(coverData).length>0&&(<div><div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:8,textTransform:"uppercase"}}>Cover Types</div>{Object.entries(coverData).sort((a,b)=>b[1]-a[1]).map(([s,c])=>(<div key={s} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:600,color:th.text}}>{s}</span><span style={{color:th.subtext}}>{Math.round((c/totalC)*100)}%</span></div><div style={{height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${Math.round((c/totalC)*100)}%`,background:AMBER,borderRadius:4}}/></div></div>))}</div>)}
+          </div>
+        );
+      })()}
+
+      {/* Cash Flow View (#23) */}
+      {(() => {
+        const months = Array.from({length:6},(_,i)=>{
+          const d=new Date(); d.setMonth(d.getMonth()+i);
+          const key=d.toISOString().slice(0,7);
+          const mo=orders.filter(o=>!o.paid&&o.status!=="Order Done"&&(o.paymentDueDate||o.deadline||"").startsWith(key));
+          return{month:d.toLocaleDateString("en-US",{month:"short",year:"numeric"}),expected:mo.reduce((s,o)=>s+(Number(o.finalTotal)||0)-(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0),0),count:mo.length};
+        });
+        return(
+          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>💵 Cash Flow — Expected Payments</div>
+            {months.map((m,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<months.length-1?"1px solid #f1f5f9":"none"}}>
+                <div style={{fontSize:13,color:th.text,fontWeight:i===0?700:400}}>{m.month}{i===0?" (this month)":""}</div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:14,fontWeight:700,color:m.expected>0?GREEN:"#94a3b8"}}>{fmt$(m.expected)}</div>
+                  <div style={{fontSize:10,color:th.subtext}}>{m.count} order{m.count!==1?"s":""}</div>
+                </div>
+              </div>
+            ))}
+            <div style={{fontSize:11,color:th.subtext,marginTop:10}}>Based on payment due dates of unpaid orders.</div>
+          </div>
+        );
+      })()}
+
+      {/* Discount History (#26) */}
+      {(() => {
+        const[discStart,setDiscStart]=React.useState("");
+        const discOrders=orders.filter(o=>{
+          if(!(o.discountValue>0))return false;
+          if(discStart&&o.dateCreated<discStart)return false;
+          return true;
+        });
+        const totalDisc=discOrders.reduce((s,o)=>s+Math.abs((Number(o.total)||0)-(Number(o.finalTotal)||0)),0);
+        return(
+          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text}}>🏷️ Discount History</div>
+              <input type="date" value={discStart} onChange={e=>setDiscStart(e.target.value)} placeholder="From date" style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,fontFamily:"system-ui,sans-serif",outline:"none"}}/>
+            </div>
+            <div style={{background:"#fef2f2",borderRadius:10,padding:"12px 14px",marginBottom:12,display:"flex",justifyContent:"space-between"}}>
+              <div style={{fontSize:13,color:RED,fontWeight:600}}>Total Discounted</div>
+              <div style={{fontSize:16,fontWeight:800,color:RED}}>{fmt$(totalDisc)}</div>
+            </div>
+            {discOrders.slice(0,10).map((o,i)=>(<div key={o.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"6px 0",borderBottom:"1px solid #f1f5f9"}}><span style={{color:th.text}}>{o.customerName}</span><span style={{color:RED,fontWeight:600}}>-{fmt$(Math.abs((Number(o.total)||0)-(Number(o.finalTotal)||0)))}</span></div>))}
+            {discOrders.length===0&&<div style={{fontSize:12,color:th.subtext}}>No discounts in this period.</div>}
+          </div>
+        );
+      })()}
+
+      {/* Monthly PDF Report (#30) */}
+      {(() => {
+        const[rptMonth,setRptMonth]=React.useState(new Date().toISOString().slice(0,7));
+        const genReport=()=>{
+          const mo=orders.filter(o=>(o.dateCreated||"").startsWith(rptMonth));
+          const rev=mo.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
+          const zno=mo.reduce((s,o)=>s+(Number(o.znoCost)||0),0);
+          const profit=rev-zno;
+          const paid=mo.filter(o=>o.paid).length;
+          const rows=mo.map(o=>`<tr><td>${o.invoiceNum||""}</td><td>${o.customerName||""}</td><td>${o.status||""}</td><td style="color:#5271FF">${fmt$(Number(o.finalTotal)||Number(o.total)||0)}</td><td style="color:${o.paid?"#18B978":"#ef4444"}">${o.paid?"✓ Paid":"✗ Unpaid"}</td></tr>`).join("");
+          const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Monthly Report</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#0f172a}h1{color:#0f1f4b;font-size:22px}h2{color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:1px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.stat{background:#f8fafc;border-radius:10px;padding:14px;text-align:center}.stat .val{font-size:22px;font-weight:800;color:#5271FF}.stat .lbl{font-size:11px;color:#64748b;margin-top:4px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}th{background:#0f1f4b;color:white;padding:8px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #e2e8f0}@media print{body{padding:16px}}</style></head><body><h1>📊 Monthly Report — ${rptMonth}</h1><h2>LuxeBound Albums</h2><div class="stats"><div class="stat"><div class="val">${mo.length}</div><div class="lbl">Orders</div></div><div class="stat"><div class="val" style="color:#18B978">${fmt$(rev)}</div><div class="lbl">Revenue</div></div><div class="stat"><div class="val" style="color:#f59e0b">${fmt$(zno)}</div><div class="lbl">Zno Costs</div></div><div class="stat"><div class="val" style="color:${profit>=0?"#18B978":"#ef4444"}">${fmt$(profit)}</div><div class="lbl">Profit</div></div></div><table><thead><tr><th>#</th><th>Customer</th><th>Status</th><th>Total</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+          const w=window.open("","_blank");w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
+        };
+        return(
+          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`}}>
+            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📄 Monthly PDF Report</div>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <input type="month" value={rptMonth} onChange={e=>setRptMonth(e.target.value)} style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"system-ui,sans-serif",outline:"none"}}/>
+              <button onClick={genReport} style={{padding:"9px 18px",borderRadius:8,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"system-ui,sans-serif",whiteSpace:"nowrap"}}>📄 Generate</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2255,14 +2625,15 @@ function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) 
   const [editEmail,setEditEmail]=useState(""); const [editVip,setEditVip]=useState(false);
   const [editNote,setEditNote]=useState(""); const [editSource,setEditSource]=useState("");
   const [editTags,setEditTags]=useState([]);
+  const [editRating,setEditRating]=useState(0);
   const inp=iStyle(th);
 
   const filtered=(customers||[]).filter(c=>(c.name||"").toLowerCase().includes(search.toLowerCase()));
   const custOrders=name=>(orders||[]).filter(o=>(o.customerName||"").toLowerCase()===(name||"").toLowerCase());
   const lifetimeValue=name=>custOrders(name).filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
 
-  const startEdit=c=>{setEditing(c.id);setEditName(c.name);setEditPhone(c.phone||"");setEditEmail(c.email||"");setEditVip(c.vip||false);setEditNote(c.note||"");setEditSource(c.source||"");setEditTags(c.tags||[]);};
-  const saveEdit=()=>{onSave((customers||[]).map(c=>c.id===editing?{...c,name:editName,phone:editPhone,email:editEmail,vip:editVip,note:editNote,source:editSource,tags:editTags}:c));setEditing(null);};
+  const startEdit=c=>{setEditing(c.id);setEditName(c.name);setEditPhone(c.phone||"");setEditEmail(c.email||"");setEditVip(c.vip||false);setEditNote(c.note||"");setEditSource(c.source||"");setEditTags(c.tags||[]);setEditRating(c.rating||0);};
+  const saveEdit=()=>{onSave((customers||[]).map(c=>c.id===editing?{...c,name:editName,phone:editPhone,email:editEmail,vip:editVip,note:editNote,source:editSource,tags:editTags,rating:editRating}:c));setEditing(null);};
   const remove=id=>{if(window.confirm("Remove this customer?")) onSave((customers||[]).filter(c=>c.id!==id));};
 
   const exportCSV=()=>{
@@ -2319,6 +2690,15 @@ function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) 
                     <input type="checkbox" checked={editVip} onChange={e=>setEditVip(e.target.checked)} style={{accentColor:"#8b5cf6"}}/>
                     ⭐ VIP Customer
                   </label>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.6px"}}>Private Rating</div>
+                    <div style={{display:"flex",gap:4}}>
+                      {[1,2,3,4,5].map(s=>(
+                        <button key={s} onClick={()=>setEditRating(s)} style={{background:"none",border:"none",cursor:"pointer",fontSize:24,padding:0,lineHeight:1,color:s<=(editRating||0)?"#fbbf24":"#e2e8f0"}}>★</button>
+                      ))}
+                      {(editRating||0)>0&&<button onClick={()=>setEditRating(0)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#94a3b8",padding:"0 4px",fontFamily:"system-ui,sans-serif"}}>clear</button>}
+                    </div>
+                  </div>
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={saveEdit} style={{flex:1,padding:"9px",borderRadius:8,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Save</button>
@@ -2330,8 +2710,9 @@ function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) 
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                   <div>
                     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap"}}>
-                      <div style={{fontWeight:700,fontSize:15,color:th.text}}>{c.name}</div>
+                      <div onClick={()=>onViewProfile&&onViewProfile(c)} style={{fontWeight:700,fontSize:15,color:th.text,cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted"}}>{c.name}</div>
                       {c.vip&&<span style={{fontSize:10,background:"#fdf4ff",color:"#7e22ce",padding:"2px 7px",borderRadius:20,fontWeight:700}}>⭐ VIP</span>}
+                      {c.rating>0&&<span style={{fontSize:11,color:"#fbbf24"}}>{"★".repeat(c.rating)}{"☆".repeat(5-c.rating)}</span>}
                       {(c.tags||[]).map(tag=><span key={tag} style={{fontSize:10,background:"#eff2ff",color:BLUE,padding:"2px 7px",borderRadius:20,fontWeight:600}}>{tag}</span>)}
                     </div>
                     {c.phone&&<div style={{fontSize:12,color:th.subtext}}>{c.phone}</div>}
@@ -2354,6 +2735,141 @@ function CustomersTab({ customers, onSave, orders, sources, customerTags, th }) 
           </div>
         );
       })}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
+// V8: EXPENSE TRACKER TAB
+// ══════════════════════════════════════════════════════════
+function ExpenseTab({ expenses, onSave, th }) {
+  const [items, setItems] = useState(expenses||[]);
+  const [desc, setDesc] = useState("");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(todayStr());
+  const [cat, setCat] = useState("General");
+  const inp = iStyle(th);
+  const CATS = ["General","Printing","Supplies","Travel","Software","Marketing","Other"];
+
+  React.useEffect(()=>{ setItems(expenses||[]); },[expenses]);
+
+  const add = () => {
+    if(!desc.trim()||!amount) return;
+    const updated = [{id:uid(),desc:desc.trim(),amount:Number(amount),date,cat},...items];
+    setItems(updated); onSave(updated);
+    setDesc(""); setAmount(""); setDate(todayStr());
+  };
+  const remove = id => { const u=items.filter(i=>i.id!==id); setItems(u); onSave(u); };
+  const total = items.reduce((s,i)=>s+Number(i.amount||0),0);
+
+  return(
+    <div>
+      <div style={{background:`linear-gradient(135deg,${RED},#f87171)`,borderRadius:12,padding:"16px 20px",marginBottom:16,color:"white"}}>
+        <div style={{fontSize:12,opacity:.8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.6px"}}>Total Expenses</div>
+        <div style={{fontSize:28,fontWeight:800,marginTop:4}}>{fmt$(total)}</div>
+      </div>
+      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>+ Add Expense</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Description…" style={{...inp,fontSize:13}}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount $" style={{...inp,fontSize:13}}/>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp,fontSize:13}}/>
+          </div>
+          <select value={cat} onChange={e=>setCat(e.target.value)} style={{...inp,fontSize:13}}>
+            {CATS.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+          <button onClick={add} style={{padding:"10px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add Expense</button>
+        </div>
+      </div>
+      {items.length===0&&<div style={{textAlign:"center",padding:"30px 0",color:th.subtext,fontSize:13}}>No expenses yet.</div>}
+      {items.map(item=>(
+        <div key={item.id} style={{background:th.card,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${th.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontWeight:600,fontSize:13,color:th.text}}>{item.desc}</div>
+            <div style={{fontSize:11,color:th.subtext,marginTop:2}}>{item.cat} · {fmtD(item.date)}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontWeight:700,fontSize:14,color:RED}}>{fmt$(item.amount)}</div>
+            <button onClick={()=>remove(item.id)} style={{background:"none",border:"none",color:RED,cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// V8: ALBUM SIZES + COVER TYPES SETTINGS TAB
+// ══════════════════════════════════════════════════════════
+function AlbumDetailsTab({ albumSizes, onSaveAlbumSizes, coverTypes, onSaveCoverTypes, th }) {
+  const [section, setSection] = useState("sizes");
+  const [sizesList, setSizesList] = useState(albumSizes||[...DEFAULT_ALBUM_SIZES]);
+  const [coverList, setCoverList] = useState(coverTypes||[...DEFAULT_COVER_TYPES]);
+  const [newSize, setNewSize] = useState("");
+  const [newCover, setNewCover] = useState("");
+  const inp = iStyle(th);
+
+  const addSize = () => { if(!newSize.trim()) return; const u=[...sizesList,{id:uid(),name:newSize.trim()}]; setSizesList(u); onSaveAlbumSizes(u); setNewSize(""); };
+  const removeSize = id => { const u=sizesList.filter(s=>s.id!==id); setSizesList(u); onSaveAlbumSizes(u); };
+  const addCover = () => { if(!newCover.trim()) return; const u=[...coverList,{id:uid(),name:newCover.trim()}]; setCoverList(u); onSaveCoverTypes(u); setNewCover(""); };
+  const removeCover = id => { const u=coverList.filter(c=>c.id!==id); setCoverList(u); onSaveCoverTypes(u); };
+
+  return(
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        {[["sizes","📐 Album Sizes"],["covers","🎨 Cover Types"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setSection(k)} style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${section===k?BLUE:"#e2e8f0"}`,background:section===k?"#eff2ff":"white",color:section===k?BLUE:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>{l}</button>
+        ))}
+      </div>
+      {section==="sizes"&&(
+        <div>
+          <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>These sizes appear as a dropdown on every order.</div>
+          {sizesList.map(s=>(<div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,background:th.card,borderRadius:10,padding:"12px 14px",border:`1px solid ${th.border}`}}><span style={{fontSize:14,fontWeight:600,color:th.text}}>{s.name}</span><button onClick={()=>removeSize(s.id)} style={{background:"none",border:"none",color:RED,cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button></div>))}
+          <div style={{display:"flex",gap:8,marginTop:12}}><input value={newSize} onChange={e=>setNewSize(e.target.value)} placeholder="e.g. 14×11" style={{...inp,flex:1,fontSize:13}} onKeyDown={e=>e.key==="Enter"&&addSize()}/><button onClick={addSize} style={{padding:"9px 16px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button></div>
+        </div>
+      )}
+      {section==="covers"&&(
+        <div>
+          <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>These cover types appear as a dropdown on every order.</div>
+          {coverList.map(c=>(<div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,background:th.card,borderRadius:10,padding:"12px 14px",border:`1px solid ${th.border}`}}><span style={{fontSize:14,fontWeight:600,color:th.text}}>{c.name}</span><button onClick={()=>removeCover(c.id)} style={{background:"none",border:"none",color:RED,cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button></div>))}
+          <div style={{display:"flex",gap:8,marginTop:12}}><input value={newCover} onChange={e=>setNewCover(e.target.value)} placeholder="e.g. Suede" style={{...inp,flex:1,fontSize:13}} onKeyDown={e=>e.key==="Enter"&&addCover()}/><button onClick={addCover} style={{padding:"9px 16px",borderRadius:8,border:"none",background:BLUE,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>+ Add</button></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// V8: PRICE LIST TAB
+// ══════════════════════════════════════════════════════════
+function PriceListTab({ albums, upgrades, companyProfile, th }) {
+  const generatePDF = () => {
+    const albumRows = albums.map(a=>`<tr><td>${a.name}</td><td style="text-align:right;font-weight:700;color:#5271FF">${fmt$(a.price)}</td></tr>`).join("");
+    const upgRows = upgrades.map(u=>`<tr><td>✨ ${u.name}</td><td style="text-align:right;font-weight:700;color:#f59e0b">${fmt$(u.price)}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Price List</title>
+<style>body{font-family:Georgia,serif;padding:40px;color:#0f172a;max-width:500px;margin:0 auto}.header{text-align:center;margin-bottom:40px;padding-bottom:20px;border-bottom:3px solid #0f1f4b}.header h1{color:#0f1f4b;font-size:26px;margin:0}.header p{color:#64748b;margin:6px 0 0;font-size:13px;letter-spacing:2px;text-transform:uppercase}h2{color:#0f1f4b;font-size:14px;text-transform:uppercase;letter-spacing:1px;margin:24px 0 10px}table{width:100%;border-collapse:collapse}td{padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:15px}tr:last-child td{border-bottom:none}.footer{text-align:center;margin-top:40px;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:20px}@media print{body{padding:20px}}</style>
+</head><body>
+<div class="header">${companyProfile?.logo?`<img src="${companyProfile.logo}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto"/>`:""}<h1>${companyProfile?.name||"LuxeBound Albums"}</h1><p>${companyProfile?.tagline||"The Art of Album Making"}</p></div>
+<h2>📚 Albums</h2><table>${albumRows}</table>
+<h2>✨ Add-ons & Upgrades</h2><table>${upgRows}</table>
+<div class="footer">Prices subject to change · Thank you for choosing ${companyProfile?.name||"LuxeBound Albums"}</div>
+</body></html>`;
+    const w = window.open("","_blank"); w.document.write(html); w.document.close(); setTimeout(()=>w.print(),400);
+  };
+  return(
+    <div>
+      <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>Generate a clean PDF price list to show or send to customers. It will include your company name and logo.</div>
+      <div style={{background:"white",borderRadius:12,padding:16,border:"1px solid #e2e8f0",marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:10}}>📚 Albums</div>
+        {albums.map(a=>(<div key={a.id} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f1f5f9",fontSize:13}}><span>{a.name}</span><span style={{fontWeight:700,color:BLUE}}>{fmt$(a.price)}</span></div>))}
+      </div>
+      <div style={{background:"white",borderRadius:12,padding:16,border:"1px solid #e2e8f0",marginBottom:20}}>
+        <div style={{fontWeight:700,fontSize:14,color:"#0f172a",marginBottom:10}}>✨ Add-ons</div>
+        {upgrades.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f1f5f9",fontSize:13}}><span>{u.name}</span><span style={{fontWeight:700,color:AMBER}}>{fmt$(u.price)}</span></div>))}
+      </div>
+      <button onClick={generatePDF} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>📄 Generate & Print Price List</button>
     </div>
   );
 }
@@ -2830,11 +3346,14 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,da
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,companyNotes,onSaveCompanyNotes,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,companyNotes,onSaveCompanyNotes,expenses,onSaveExpenses,albumSizes,onSaveAlbumSizes,coverTypes,onSaveCoverTypes,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
     {id:"pipeline",icon:"🔄",label:"Pipeline",desc:"Edit order statuses & stages"},
     {id:"notes",icon:"📋",label:"Company Notes",desc:"Shared notes for your whole team"},
+    {id:"expenses",icon:"💸",label:"Expenses",desc:"Track business expenses"},
+    {id:"albumdetails",icon:"📐",label:"Album Details",desc:"Manage sizes & cover types"},
+    {id:"pricelist",icon:"🔖",label:"Price List",desc:"Generate a shareable price list"},
     {id:"albums",icon:"📚",label:"Albums",desc:"Manage album types & prices"},
     {id:"upgrades",icon:"✨",label:"Upgrades",desc:"Manage add-ons & prices"},
     {id:"payments",icon:"💳",label:"Payments",desc:"Payment methods"},
@@ -2857,11 +3376,14 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
       switch(activeTab){
         case "pipeline":  return <PipelineTab customStatuses={customStatuses} onSave={onSaveCustomStatuses} th={th}/>;
         case "notes":     return <CompanyNotesTab notes={companyNotes} onSave={onSaveCompanyNotes} currentUser={currentUser} th={th}/>;
+        case "expenses":  return <ExpenseTab expenses={expenses} onSave={onSaveExpenses} th={th}/>;
+        case "albumdetails": return <AlbumDetailsTab albumSizes={albumSizes} onSaveAlbumSizes={onSaveAlbumSizes} coverTypes={coverTypes} onSaveCoverTypes={onSaveCoverTypes} th={th}/>;
+        case "pricelist": return <PriceListTab albums={albums} upgrades={upgrades} companyProfile={companyProfile} th={th}/>;
         case "albums":    return <ListEditor items={albums} onSave={onSaveAlbums} th={th} placeholder="Album name"/>;
         case "upgrades":  return <ListEditor items={upgrades} onSave={onSaveUpgrades} th={th} placeholder="Upgrade name"/>;
         case "payments":  return <PaymentsTab paymentMethods={paymentMethods} onSave={onSavePayments} th={th}/>;
         case "users":     return <UsersTab users={users} onSave={onSaveUsers} th={th}/>;
-        case "insights":  return <InsightsTab orders={orders} th={th}/>;
+        case "insights":  return <InsightsTab orders={orders} customers={customers} th={th}/>;
         case "customers": return <CustomersTab customers={customers} onSave={onSaveCustomer} orders={orders} sources={sources} customerTags={customerTags} th={th}/>;
         case "lists":     return <ListsTagsTab sources={sources} onSaveSources={onSaveSources} customerTags={customerTags} onSaveCustomerTags={onSaveCustomerTags} th={th}/>;
         case "trash":     return <TrashTab trash={trash} onRestore={onRestoreOrder} onDeletePermanent={onDeletePermanent} th={th}/>;
@@ -2879,6 +3401,22 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
       </div>
     );
   }
+  // V8: Admin can reorder settings boxes
+  const [dragSettingIdx,setDragSettingIdx]=useState(null);
+  const [overSettingIdx,setOverSettingIdx]=useState(null);
+  const [tabOrder,setTabOrder]=useState(()=>{
+    try{const saved=localStorage.getItem("lb_setting_order");return saved?JSON.parse(saved):null;}catch{return null;}
+  });
+  const orderedTabs=tabOrder?[...tabs].sort((a,b)=>{const oi=tabOrder.indexOf(a.id);const bi=tabOrder.indexOf(b.id);return(oi===-1?999:oi)-(bi===-1?999:bi)}):tabs;
+  const handleSettingDragStart=(i)=>{ if(isAdmin)setDragSettingIdx(i); };
+  const handleSettingDragOver=(e,i)=>{ e.preventDefault(); if(isAdmin)setOverSettingIdx(i); };
+  const handleSettingDrop=(i)=>{
+    if(!isAdmin||dragSettingIdx===null||dragSettingIdx===i){setDragSettingIdx(null);setOverSettingIdx(null);return;}
+    const u=[...orderedTabs];const[moved]=u.splice(dragSettingIdx,1);u.splice(i,0,moved);
+    const newOrder=u.map(t=>t.id);setTabOrder(newOrder);localStorage.setItem("lb_setting_order",JSON.stringify(newOrder));
+    setDragSettingIdx(null);setOverSettingIdx(null);
+  };
+
   const TAB_COLORS = {
     pipeline:  "linear-gradient(135deg,#667eea,#764ba2)",
     notes:     "linear-gradient(135deg,#f093fb,#f5576c)",
@@ -2893,24 +3431,37 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     backup:    "linear-gradient(135deg,#16a34a,#4ade80)",
     users:     "linear-gradient(135deg,#dc2626,#f87171)",
     shortcuts: "linear-gradient(135deg,#374151,#6b7280)",
+    expenses:  "linear-gradient(135deg,#ef4444,#f87171)",
+    albumdetails: "linear-gradient(135deg,#0ea5e9,#38bdf8)",
+    pricelist: "linear-gradient(135deg,#16a34a,#4ade80)",
     account:   "linear-gradient(135deg,#C9A84C,#fbbf24)",
   };
 
-  const renderGrid = (items) => (
+  const renderGrid = (items, draggable=false) => (
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-      {items.map(tab=>(
-        <div key={tab.id} onClick={()=>setActiveTab(tab.id)}
+      {items.map((tab,i)=>(
+        <div key={tab.id}
+          draggable={draggable&&isAdmin}
+          onDragStart={draggable?()=>handleSettingDragStart(i):undefined}
+          onDragOver={draggable?(e)=>handleSettingDragOver(e,i):undefined}
+          onDrop={draggable?()=>handleSettingDrop(i):undefined}
+          onDragEnd={draggable?()=>{setDragSettingIdx(null);setOverSettingIdx(null);}:undefined}
+          onClick={()=>setActiveTab(tab.id)}
           style={{background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
-            borderRadius:16,padding:"18px 12px",cursor:"pointer",
+            borderRadius:16,padding:"18px 12px",cursor:draggable&&isAdmin?"grab":"pointer",
             boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
             display:"flex",flexDirection:"column",alignItems:"center",
-            textAlign:"center",gap:8,minHeight:110,position:"relative"}}>
+            textAlign:"center",gap:8,minHeight:110,position:"relative",
+            opacity:draggable&&dragSettingIdx===i?0.5:1,
+            border:draggable&&overSettingIdx===i&&dragSettingIdx!==i?"2px solid white":"2px solid transparent",
+            transition:"opacity .15s"}}>
           <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
           <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
           {tab.id==="trash"&&(trash||[]).length>0&&(
             <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
           )}
+          {draggable&&isAdmin&&<div style={{position:"absolute",top:6,left:8,fontSize:12,color:"rgba(255,255,255,0.4)"}}>⠿</div>}
         </div>
       ))}
     </div>
@@ -2921,7 +3472,8 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
       <NavBar title="⚙️ Settings" onBack={onBack}/>
       <div style={{padding:"24px",maxWidth:800,margin:"0 auto"}}>
         {/* Main grid - all users */}
-        {renderGrid(tabs)}
+        {isAdmin&&<div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"right"}}>⠿ Drag to reorder</div>}
+        {renderGrid(orderedTabs, true)}
 
         {/* Admin only section */}
         {isAdmin&&(
@@ -2934,7 +3486,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
               </div>
               <div style={{height:1,flex:1,background:"#e2e8f0"}}/>
             </div>
-            {renderGrid(adminTabs)}
+            {renderGrid(adminTabs, false)}
           </div>
         )}
       </div>
@@ -2960,7 +3512,10 @@ export default function App() {
   const [customerTags,setCustomerTags]=useState([]);
   const [companyProfile,setCompanyProfile]=useState(null);
   const [customStatuses,setCustomStatuses]=useState(null);
-  const [companyNotes,setCompanyNotes]=useState([]); // null = use defaults
+  const [companyNotes,setCompanyNotes]=useState([]);
+  const [expenses,setExpenses]=useState([]);
+  const [albumSizes,setAlbumSizes]=useState(DEFAULT_ALBUM_SIZES);
+  const [coverTypes,setCoverTypes]=useState(DEFAULT_COVER_TYPES); // null = use defaults
   const [lang,setLang]=useState(()=>lsGet("lb_lang")||"en");
   const [darkMode,setDarkMode]=useState(false);
   const [invoiceMap,setInvoiceMap]=useState({});
@@ -3068,8 +3623,11 @@ export default function App() {
     const who=currentUser?.displayName||currentUser?.email||"Unknown";
     const diff=buildDiff(order,{...order,status:newStatus},who);
     const editHistory=[...(order.editHistory||[]),...(diff?[diff]:[])];
-    await setDoc(doc(db,"orders",order.id),clean({...order,status:newStatus,statusChangedAt:new Date().toISOString(),editHistory}));
+    const doneAt=newStatus==="Order Done"?(order.doneAt||new Date().toISOString()):order.doneAt;
+    await setDoc(doc(db,"orders",order.id),clean({...order,status:newStatus,statusChangedAt:new Date().toISOString(),editHistory,doneAt}));
+    if(newStatus==="Order Done") setShowThankYouOrder({...order,customerName:order.customerName});
   };
+  const [showThankYouOrder,setShowThankYouOrder]=useState(null);
 
   const bulkStatus=async(ids,status)=>{
     const who=currentUser?.displayName||currentUser?.email||"Unknown";
@@ -3104,6 +3662,9 @@ export default function App() {
   const saveSources=async(items)=>await saveConfig("sources",items);
   const saveCustomerTags=async(items)=>await saveConfig("customerTags",items);
   const togLang=l=>{setLang(l);lsSet("lb_lang",l);};
+  const saveExpenses=async(items)=>{ await setDoc(doc(db,"config","expenses"),{items}); };
+  const saveAlbumSizes=async(items)=>await saveConfig("albumSizes",items);
+  const saveCoverTypes=async(items)=>await saveConfig("coverTypes",items);
   const saveCompanyNotes=async(notes)=>{
     await setDoc(doc(db,"config","companyNotes"),{items:notes});
   };
@@ -3166,10 +3727,11 @@ export default function App() {
   if(view==="newOrder"||view==="editOrder") return(
     <OrderForm
       order={editingOrder} albums={albums} upgrades={upgrades} paymentMethods={payments}
-      onSave={saveOrder} onDelete={deleteOrder}
+      onSave={saveOrder} onDelete={deleteOrder} onDuplicate={duplicateOrder}
       onCancel={()=>{setView("dashboard");setEditingOrder(null);}}
       currentUser={currentUser} customers={customers} onSaveCustomer={saveCustomer}
-      sources={sources} companyProfile={companyProfile} activeStatuses={customStatuses||STATUSES} th={theme}/>
+      sources={sources} companyProfile={companyProfile} activeStatuses={customStatuses||STATUSES}
+      albumSizes={albumSizes} coverTypes={coverTypes} lang={lang} th={theme}/>
   );
 
   if(view==="settings") return(
@@ -3187,6 +3749,9 @@ export default function App() {
       onRestoreBackup={restoreBackup}
       customStatuses={customStatuses} onSaveCustomStatuses={saveCustomStatuses}
       companyNotes={companyNotes} onSaveCompanyNotes={saveCompanyNotes}
+      expenses={expenses} onSaveExpenses={saveExpenses}
+      albumSizes={albumSizes} onSaveAlbumSizes={saveAlbumSizes}
+      coverTypes={coverTypes} onSaveCoverTypes={saveCoverTypes}
       lang={lang}               onToggleLang={togLang}
       darkMode={darkMode}       onToggleDark={togDark}
       onChangePw={changePw}     onUpdateDisplayName={updateDisplayName} onUpdatePhoto={updatePhoto}
@@ -3196,8 +3761,10 @@ export default function App() {
   );
 
   return(
+    <>
+    {showThankYouOrder&&<ThankYouPopup order={showThankYouOrder} lang={lang} onClose={()=>setShowThankYouOrder(null)}/>}
     <Dashboard
-      orders={orders} albums={albums}
+      orders={orders} albums={albums} upgrades={upgrades} customers={customers} onSaveCustomer={saveCustomersList}
       statusFilter={statusFilter} setStatusFilter={setStatusFilter}
       onNew={()=>{setEditingOrder(null);setView("newOrder");}}
       onEdit={o=>{setEditingOrder(o);setView("editOrder");}}
@@ -3208,11 +3775,13 @@ export default function App() {
       onBulkStatus={bulkStatus}
       invoiceMap={invoiceMap}
       activeStatuses={customStatuses||STATUSES}
+      lang={lang}
       onEditNote={saveNote}
       onSettings={()=>setView("settings")}
       onSignOut={signOut}
       showExport={showExport} setShowExport={setShowExport}
       currentUser={currentUser}
       th={theme}/>
+    </>
   );
 }
