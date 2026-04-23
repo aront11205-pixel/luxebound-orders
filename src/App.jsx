@@ -1442,8 +1442,8 @@ function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilte
       </div>
       {showExport&&<ExportModal orders={orders} onClose={()=>setShowExport(false)} th={th}/>}
       {quickNoteOrder&&<QuickNoteModal order={quickNoteOrder} onSave={onEditNote} onClose={()=>setQuickNoteOrder(null)} th={th}/>}
-      {showCalc&&<PriceCalculator albums={albums} upgrades={upgrades} onClose={()=>setShowCalc(false)}/>
-      {viewCustomer&&<CustomerProfile customer={viewCustomer} orders={orders} onClose={()=>setViewCustomer(null)} onEdit={c=>{onSaveCustomer([c,...(customers||[]).filter(x=>x.id!==c.id)]);setViewCustomer(c);}} th={th}/>}}
+      {showCalc&&<PriceCalculator albums={albums} upgrades={upgrades} onClose={()=>setShowCalc(false)}/>}
+      {viewCustomer&&<CustomerProfile customer={viewCustomer} orders={orders} onClose={()=>setViewCustomer(null)} onEdit={c=>{onSaveCustomer([c,...(customers||[]).filter(x=>x.id!==c.id)]);setViewCustomer(c);}} th={th}/>}
       {showThankYou&&<ThankYouPopup order={showThankYou} lang={lang} onClose={()=>setShowThankYou(null)}/>}
     </div>
   );
@@ -1500,7 +1500,15 @@ ${order.discountValue>0?`<tr><td>🏷️ Discount</td><td style="text-align:righ
 ${payLines}
 <tr class="bal"><td>Balance Due</td><td style="text-align:right">${fmt$(balance)}</td></tr>
 </tbody></table>
-<div class="foot">Thank you for choosing LuxeBound Albums · The Art of Album Making</div>
+<div class="foot">
+  <div style="margin-bottom:14px;padding:14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;text-align:left">
+    <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:6px">Payment Options</div>
+    <div style="font-size:12px;color:#475569;margin-bottom:4px">QuickPay: ${order._companyQuickPay||"luxeboundalbums@gmail.com"} &nbsp;·&nbsp; Cash &nbsp;·&nbsp; Credit Card</div>
+    <div style="font-size:11px;color:#94a3b8;font-style:italic">A 3% processing fee applies to all credit card payments.</div>
+  </div>
+  <div style="font-size:12px;color:#475569;font-style:italic;margin-bottom:10px">Please ensure that the full balance is paid at the time of pickup.</div>
+  <div style="font-size:11px;color:#94a3b8">Thank you for choosing ${order._companyName||"LuxeBound Albums"} — it is a pleasure serving you!</div>
+</div>
 </body></html>`;
   const w=window.open("","_blank");
   w.document.write(html);
@@ -1981,7 +1989,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
         {/* Invoice button - edit only */}
         {isEdit&&(
           <div style={{marginBottom:14}}>
-            <button onClick={()=>generateInvoice({...order,customerName,finalTotal,payments,paymentDueDate,selectedAlbums:selAlbums,selectedUpgrades:selUpg,upgradeNames:Object.fromEntries(upgrades.map(u=>[u.id,u.name])),upgradePrices:Object.fromEntries(upgrades.map(u=>[u.id,u.price])),_companyName:companyProfile?.name,_companyTagline:companyProfile?.tagline,_companyPhone:companyProfile?.phone,_companyLogo:companyProfile?.logo})}
+            <button onClick={()=>generateInvoice({...order,customerName,finalTotal,payments,paymentDueDate,selectedAlbums:selAlbums,selectedUpgrades:selUpg,upgradeNames:Object.fromEntries(upgrades.map(u=>[u.id,u.name])),upgradePrices:Object.fromEntries(upgrades.map(u=>[u.id,u.price])),_companyName:companyProfile?.name,_companyTagline:companyProfile?.tagline,_companyPhone:companyProfile?.phone,_companyLogo:companyProfile?.logo,_companyQuickPay:companyProfile?.quickPayEmail||"luxeboundalbums@gmail.com"})}
               style={{width:"100%",padding:"12px",borderRadius:10,border:`1.5px solid ${NAVY}`,background:"white",color:NAVY,cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               📄 Generate Invoice{order.invoiceNum?` (${order.invoiceNum})`:""}
             </button>
@@ -3057,6 +3065,7 @@ function CompanyProfileTab({ profile, onSave, th }) {
   const [email,setEmail]=useState(profile?.email||"");
   const [address,setAddress]=useState(profile?.address||"");
   const [website,setWebsite]=useState(profile?.website||"");
+  const [quickPayEmail,setQuickPayEmail]=useState(profile?.quickPayEmail||"luxeboundalbums@gmail.com");
   const [logo,setLogo]=useState(profile?.logo||null);
   const [saved,setSaved]=useState(false);
   const inp=iStyle(th);
@@ -3075,7 +3084,7 @@ function CompanyProfileTab({ profile, onSave, th }) {
   };
 
   const handleSave=()=>{
-    onSave({name,tagline,phone,email,address,website,logo});
+    onSave({name,tagline,phone,email,address,website,quickPayEmail,logo});
     setSaved(true);setTimeout(()=>setSaved(false),2000);
   };
 
@@ -3125,6 +3134,11 @@ function CompanyProfileTab({ profile, onSave, th }) {
           <div style={{display:"flex",flexDirection:"column",gap:5}}>
             <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>Website</label>
             <input value={website} onChange={e=>setWebsite(e.target.value)} style={{...inp,fontSize:13}}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.6px",textTransform:"uppercase",color:"#64748b"}}>QuickPay Email</label>
+            <input type="email" value={quickPayEmail} onChange={e=>setQuickPayEmail(e.target.value)} placeholder="e.g. luxeboundalbums@gmail.com" style={{...inp,fontSize:13}}/>
+            <div style={{fontSize:11,color:"#94a3b8"}}>This appears on every invoice under Payment Options.</div>
           </div>
         </div>
       </div>
