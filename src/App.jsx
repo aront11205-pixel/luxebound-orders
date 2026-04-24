@@ -1141,8 +1141,8 @@ function CustomerProfile({ customer, orders, onClose, onEdit, th }) {
   const STARS = [1,2,3,4,5];
 
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:16}}>
-      <div style={{background:"#f1f5f9",borderRadius:20,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#f1f5f9",borderRadius:20,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
         {/* Header */}
         <div style={{background:`linear-gradient(135deg,${NAVY},#1e3a8a)`,borderRadius:"20px 20px 0 0",padding:"24px 24px 20px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -1641,13 +1641,6 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
     if(s==="Ordered"&&!dateSentZno) setDateSentZno(todayStr());
   };
 
-  // V5: Auto-check paid when fully paid via deposits
-  const totalReceived=payments.reduce((s,p)=>s+Number(p.amount||0),0);
-  React.useEffect(()=>{
-    if(totalReceived>0&&totalReceived>=finalTotal&&finalTotal>0) setPaid(true);
-  // eslint-disable-next-line
-  },[totalReceived]);
-
   // V5: Photo upload
   const handlePhotoUpload=async(e)=>{
     const files=Array.from(e.target.files||[]);
@@ -1672,6 +1665,13 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   const discAmt=discVal?(discType==="percent"?subtotal*(Number(discVal)||0)/100:Number(discVal)||0):0;
   const finalTotal=Math.max(0,subtotal-discAmt);
   const profit=finalTotal-(Number(znoCost)||0);
+
+  // V5: Auto-check paid when fully paid via deposits (must be after finalTotal)
+  const totalReceived=payments.reduce((s,p)=>s+Number(p.amount||0),0);
+  const balance=finalTotal-totalReceived;
+  React.useEffect(()=>{
+    if(totalReceived>0&&totalReceived>=finalTotal&&finalTotal>0) setPaid(true);
+  },[totalReceived,finalTotal]);
 
   const handleSave=async()=>{
     if(!customerName.trim()){setErr("Customer name is required.");return;}
@@ -3555,6 +3555,8 @@ export default function App() {
     cfg("users",setUsers,DEFAULT_USERS);
     cfg("sources",setSources,DEFAULT_SOURCES);
     cfg("customerTags",setCustomerTags,[]);
+    cfg("albumSizes",setAlbumSizes,DEFAULT_ALBUM_SIZES);
+    cfg("coverTypes",setCoverTypes,DEFAULT_COVER_TYPES);
     // Company profile
     unsubs.push(onSnapshot(doc(db,"config","companyProfile"),snap=>{
       if(snap.exists()) setCompanyProfile(snap.data());
@@ -3621,6 +3623,13 @@ export default function App() {
 
   const pinOrder=async(order)=>{
     await setDoc(doc(db,"orders",order.id),clean({...order,pinned:!order.pinned}));
+  };
+
+  const duplicateOrder=async(order)=>{
+    const{id,invoiceNum,pinned,doneAt,...rest}=order;
+    const newOrder=clean({...rest,dateCreated:todayStr(),status:"New Order",paid:false,payments:[],photos:[],editHistory:[],createdAt:new Date().toISOString(),createdBy:currentUser?.displayName||currentUser?.email||"Unknown",statusChangedAt:new Date().toISOString()});
+    await addDoc(collection(db,"orders"),newOrder);
+    setView("dashboard");setEditingOrder(null);
   };
 
   const snoozeOrder=async(order,days)=>{
