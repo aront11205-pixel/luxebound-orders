@@ -3257,17 +3257,25 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     );
   }
   // V8: Admin can reorder settings boxes
-  const [dragSettingIdx,setDragSettingIdx]=useState(null);
-  const [overSettingIdx,setOverSettingIdx]=useState(null);
+  const [selectedSettingIdx,setSelectedSettingIdx]=useState(null);
   const orderedTabs=settingOrder&&settingOrder.length>0?[...tabs].sort((a,b)=>{const oi=settingOrder.indexOf(a.id);const bi=settingOrder.indexOf(b.id);return(oi===-1?999:oi)-(bi===-1?999:bi)}):tabs;
-  const handleSettingDragStart=(i)=>{ if(isAdmin)setDragSettingIdx(i); };
-  const handleSettingDragOver=(e,i)=>{ e.preventDefault(); if(isAdmin)setOverSettingIdx(i); };
-  const handleSettingDrop=(i)=>{
-    if(!isAdmin||dragSettingIdx===null||dragSettingIdx===i){setDragSettingIdx(null);setOverSettingIdx(null);return;}
-    const u=[...orderedTabs];const[moved]=u.splice(dragSettingIdx,1);u.splice(i,0,moved);
-    const newOrder=u.map(t=>t.id);
-    onSaveSettingOrder(newOrder);
-    setDragSettingIdx(null);setOverSettingIdx(null);
+  const handleSettingTap=(i)=>{
+    if(!isAdmin) return;
+    if(selectedSettingIdx===null){
+      // First tap - select this box
+      setSelectedSettingIdx(i);
+    } else if(selectedSettingIdx===i){
+      // Tap same box - deselect
+      setSelectedSettingIdx(null);
+    } else {
+      // Tap different box - swap them
+      const u=[...orderedTabs];
+      const[moved]=u.splice(selectedSettingIdx,1);
+      u.splice(i,0,moved);
+      const newOrder=u.map(t=>t.id);
+      onSaveSettingOrder(newOrder);
+      setSelectedSettingIdx(null);
+    }
   };
 
   const TAB_COLORS = {
@@ -3290,33 +3298,38 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     account:   "linear-gradient(135deg,#C9A84C,#fbbf24)",
   };
 
-  const renderGrid = (items, draggable=false) => (
+  const renderGrid = (items, reorderable=false) => (
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-      {items.map((tab,i)=>(
-        <div key={tab.id}
-          draggable={draggable&&isAdmin}
-          onDragStart={draggable?()=>handleSettingDragStart(i):undefined}
-          onDragOver={draggable?(e)=>handleSettingDragOver(e,i):undefined}
-          onDrop={draggable?()=>handleSettingDrop(i):undefined}
-          onDragEnd={draggable?()=>{setDragSettingIdx(null);setOverSettingIdx(null);}:undefined}
-          onClick={()=>setActiveTab(tab.id)}
-          style={{background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
-            borderRadius:16,padding:"18px 12px",cursor:draggable&&isAdmin?"grab":"pointer",
-            boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
-            display:"flex",flexDirection:"column",alignItems:"center",
-            textAlign:"center",gap:8,minHeight:110,position:"relative",
-            opacity:draggable&&dragSettingIdx===i?0.5:1,
-            border:draggable&&overSettingIdx===i&&dragSettingIdx!==i?"2px solid white":"2px solid transparent",
-            transition:"opacity .15s"}}>
-          <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
-          <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
-          {tab.id==="trash"&&(trash||[]).length>0&&(
-            <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
-          )}
-          {draggable&&isAdmin&&<div style={{position:"absolute",top:6,left:8,fontSize:12,color:"rgba(255,255,255,0.4)"}}>⠿</div>}
-        </div>
-      ))}
+      {items.map((tab,i)=>{
+        const isSelected = reorderable && selectedSettingIdx===i;
+        const isTarget = reorderable && selectedSettingIdx!==null && selectedSettingIdx!==i;
+        return(
+          <div key={tab.id}
+            onClick={()=>{
+              if(reorderable&&isAdmin) handleSettingTap(i);
+              else if(selectedSettingIdx===null) setActiveTab(tab.id);
+            }}
+            style={{
+              background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
+              borderRadius:16,padding:"18px 12px",cursor:"pointer",
+              boxShadow:isSelected?"0 0 0 3px white, 0 8px 24px rgba(0,0,0,0.3)":"0 4px 16px rgba(0,0,0,0.15)",
+              display:"flex",flexDirection:"column",alignItems:"center",
+              textAlign:"center",gap:8,minHeight:110,position:"relative",
+              border:isSelected?"3px solid white":isTarget?"3px dashed rgba(255,255,255,0.6)":"3px solid transparent",
+              transform:isSelected?"scale(1.05)":"scale(1)",
+              transition:"all .2s",
+              opacity:reorderable&&selectedSettingIdx!==null&&!isSelected&&!isTarget?0.6:1,
+            }}>
+            <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
+            <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
+            {tab.id==="trash"&&(trash||[]).length>0&&(
+              <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
+            )}
+            {isSelected&&<div style={{position:"absolute",top:-8,right:-8,background:"white",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>✓</div>}
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -3325,7 +3338,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
       <NavBar title="⚙️ Settings" onBack={onBack}/>
       <div style={{padding:"24px",maxWidth:960,margin:"0 auto"}}>
         {/* Main grid - all users */}
-        {isAdmin&&<div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"right"}}>⠿ Drag to reorder</div>}
+        {isAdmin&&<div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"right"}}>{selectedSettingIdx!==null?"👆 Now tap where to move it":"✏️ Tap a box to move it"}</div>}
         {renderGrid(orderedTabs, true)}
 
         {/* Admin only section */}
