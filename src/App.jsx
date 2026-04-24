@@ -3500,6 +3500,11 @@ export default function App() {
       if(snap.exists()) setCompanyNotes(snap.data().items||[]);
       else setCompanyNotes([]);
     },e=>console.error("companyNotes:",e)));
+    // Settings box order - synced across all users
+    unsubs.push(onSnapshot(doc(db,"config","settingOrder"),snap=>{
+      if(snap.exists()&&snap.data().order?.length>0) setSettingOrder(snap.data().order);
+      else setSettingOrder([]);
+    },e=>console.error("settingOrder:",e)));
     setReady(true);
     return()=>unsubs.forEach(u=>u());
   },[]);
