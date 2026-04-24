@@ -3201,6 +3201,98 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,da
   );
 }
 
+// ══════════════════════════════════════════════════════════
+// V8.6: REORDER SETTINGS PAGE (admin only)
+// ══════════════════════════════════════════════════════════
+function ReorderSettings({ tabs, adminTabs, onSave, onBack, TAB_COLORS }) {
+  const allTabs = [...tabs, ...adminTabs];
+  const [list, setList] = useState(allTabs);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+
+  const onDragStart = (e, i) => {
+    setDragIdx(i);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(i));
+  };
+  const onDragOver = (e, i) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setOverIdx(i);
+  };
+  const onDrop = (e, i) => {
+    e.preventDefault();
+    if(dragIdx===null||dragIdx===i){setDragIdx(null);setOverIdx(null);return;}
+    const u = [...list];
+    const [moved] = u.splice(dragIdx, 1);
+    u.splice(i, 0, moved);
+    setList(u);
+    setDragIdx(null);
+    setOverIdx(null);
+  };
+  const onDragEnd = () => { setDragIdx(null); setOverIdx(null); };
+  const moveUp = i => { if(i===0) return; const u=[...list]; [u[i-1],u[i]]=[u[i],u[i-1]]; setList(u); };
+  const moveDown = i => { if(i===list.length-1) return; const u=[...list]; [u[i],u[i+1]]=[u[i+1],u[i]]; setList(u); };
+
+  const handleSave = () => {
+    // Save only the non-admin tabs order (admin tabs always stay at bottom)
+    const regularIds = list.filter(t=>!adminTabs.find(a=>a.id===t.id)).map(t=>t.id);
+    onSave(regularIds);
+  };
+
+  return(
+    <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
+      <NavBar title="✏️ Reorder Settings" onBack={onBack}/>
+      <div style={{padding:"24px 28px",maxWidth:600,margin:"0 auto"}}>
+        <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>Drag the ⠿ handle or use the ▲▼ arrows to reorder. Tap Save when done.</div>
+        {list.map((tab,i)=>{
+          const isAdmin = !!adminTabs.find(a=>a.id===tab.id);
+          return(
+            <div key={tab.id}
+              draggable
+              onDragStart={e=>onDragStart(e,i)}
+              onDragOver={e=>onDragOver(e,i)}
+              onDrop={e=>onDrop(e,i)}
+              onDragEnd={onDragEnd}
+              style={{
+                display:"flex",alignItems:"center",gap:12,marginBottom:8,
+                background:"white",borderRadius:12,padding:"12px 16px",
+                border:`2px solid ${overIdx===i&&dragIdx!==i?"#5271FF":"#e2e8f0"}`,
+                opacity:dragIdx===i?0.4:1,
+                boxShadow:"0 2px 8px rgba(0,0,0,0.06)",
+                cursor:"grab",transition:"border-color .15s, opacity .15s",
+              }}>
+              {/* Drag handle */}
+              <div style={{color:"#94a3b8",fontSize:20,cursor:"grab",userSelect:"none",flexShrink:0}}>⠿</div>
+              {/* Up/Down arrows */}
+              <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+                <button onClick={()=>moveUp(i)} disabled={i===0} style={{background:"none",border:"none",cursor:i===0?"not-allowed":"pointer",color:i===0?"#e2e8f0":"#5271FF",fontSize:12,padding:"1px 4px",lineHeight:1}}>▲</button>
+                <button onClick={()=>moveDown(i)} disabled={i===list.length-1} style={{background:"none",border:"none",cursor:i===list.length-1?"not-allowed":"pointer",color:i===list.length-1?"#e2e8f0":"#5271FF",fontSize:12,padding:"1px 4px",lineHeight:1}}>▼</button>
+              </div>
+              {/* Color dot */}
+              <div style={{width:36,height:36,borderRadius:10,background:TAB_COLORS[tab.id]||"#5271FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{tab.icon}</div>
+              {/* Name */}
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>{tab.label}</div>
+                <div style={{fontSize:11,color:"#64748b",marginTop:1}}>{tab.desc}</div>
+              </div>
+              {/* Position number */}
+              <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",minWidth:24,textAlign:"right"}}>#{i+1}</div>
+              {/* Admin badge */}
+              {isAdmin&&<span style={{fontSize:10,background:"#fef2f2",color:"#dc2626",padding:"2px 8px",borderRadius:20,fontWeight:700,flexShrink:0}}>Admin</span>}
+            </div>
+          );
+        })}
+        <div style={{display:"flex",gap:12,marginTop:20}}>
+          <button onClick={onBack} style={{flex:1,padding:"13px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Cancel</button>
+          <button onClick={handleSave} style={{flex:2,padding:"13px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#18B978,#34d399)",color:"white",cursor:"pointer",fontSize:15,fontWeight:700,fontFamily:"system-ui,sans-serif",boxShadow:"0 4px 14px rgba(24,185,120,0.4)"}}>💾 Save Order</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,companyNotes,onSaveCompanyNotes,expenses,onSaveExpenses,albumSizes,onSaveAlbumSizes,coverTypes,onSaveCoverTypes,settingOrder,onSaveSettingOrder,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
@@ -3257,37 +3349,8 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     );
   }
   // V8: Admin can reorder settings boxes
-  const [dragSettingIdx,setDragSettingIdx]=useState(null);
-  const [overSettingIdx,setOverSettingIdx]=useState(null);
+  const [showReorder,setShowReorder]=useState(false);
   const orderedTabs=settingOrder&&settingOrder.length>0?[...tabs].sort((a,b)=>{const oi=settingOrder.indexOf(a.id);const bi=settingOrder.indexOf(b.id);return(oi===-1?999:oi)-(bi===-1?999:bi)}):tabs;
-  const handleSettingDragStart=(e,i)=>{
-    if(!isAdmin) return;
-    setDragSettingIdx(i);
-    e.dataTransfer.effectAllowed="move";
-    e.dataTransfer.setData("text/plain",String(i));
-  };
-  const handleSettingDragOver=(e,i)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect="move";
-    if(isAdmin) setOverSettingIdx(i);
-  };
-  const handleSettingDrop=(e,i)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    if(!isAdmin||dragSettingIdx===null||dragSettingIdx===i){setDragSettingIdx(null);setOverSettingIdx(null);return;}
-    const u=[...orderedTabs];
-    const[moved]=u.splice(dragSettingIdx,1);
-    u.splice(i,0,moved);
-    const newOrder=u.map(t=>t.id);
-    onSaveSettingOrder(newOrder);
-    setDragSettingIdx(null);
-    setOverSettingIdx(null);
-  };
-  const handleSettingDragEnd=()=>{
-    setDragSettingIdx(null);
-    setOverSettingIdx(null);
-  };
 
   const TAB_COLORS = {
     pipeline:  "linear-gradient(135deg,#667eea,#764ba2)",
@@ -3309,55 +3372,46 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     account:   "linear-gradient(135deg,#C9A84C,#fbbf24)",
   };
 
-  const renderGrid = (items, reorderable=false) => (
+  const renderGrid = (items) => (
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-      {items.map((tab,i)=>{
-        const isDragging = reorderable && dragSettingIdx===i;
-        const isOver = reorderable && overSettingIdx===i && dragSettingIdx!==i;
-        return(
-          <div key={tab.id}
-            draggable={reorderable&&isAdmin}
-            onDragStart={reorderable&&isAdmin?(e)=>handleSettingDragStart(e,i):undefined}
-            onDragOver={reorderable&&isAdmin?(e)=>handleSettingDragOver(e,i):undefined}
-            onDrop={reorderable&&isAdmin?(e)=>handleSettingDrop(e,i):undefined}
-            onDragEnd={reorderable&&isAdmin?handleSettingDragEnd:undefined}
-            onClick={()=>{ if(!isDragging) setActiveTab(tab.id); }}
-            style={{
-              background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
-              borderRadius:16,padding:"18px 12px",
-              cursor:reorderable&&isAdmin?"grab":"pointer",
-              boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
-              display:"flex",flexDirection:"column",alignItems:"center",
-              textAlign:"center",gap:8,minHeight:110,position:"relative",
-              opacity:isDragging?0.4:1,
-              border:isOver?"3px solid white":"3px solid transparent",
-              transition:"opacity .15s, border .15s",
-              userSelect:"none",
-            }}>
-            <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
-            <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
-            {tab.id==="trash"&&(trash||[]).length>0&&(
-              <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
-            )}
-            {reorderable&&isAdmin&&(
-              <div style={{position:"absolute",top:6,left:8,fontSize:14,color:"rgba(255,255,255,0.5)",userSelect:"none"}}>⠿</div>
-            )}
-          </div>
-        );
-      })}
+      {items.map((tab)=>(
+        <div key={tab.id} onClick={()=>setActiveTab(tab.id)}
+          style={{background:TAB_COLORS[tab.id]||"linear-gradient(135deg,#5271FF,#7c93ff)",
+            borderRadius:16,padding:"18px 12px",cursor:"pointer",
+            boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
+            display:"flex",flexDirection:"column",alignItems:"center",
+            textAlign:"center",gap:8,minHeight:110,position:"relative"}}>
+          <div style={{fontSize:30,lineHeight:1}}>{tab.icon}</div>
+          <div style={{fontWeight:700,fontSize:13,color:"white",lineHeight:1.2}}>{tab.label}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",lineHeight:1.3}}>{tab.desc}</div>
+          {tab.id==="trash"&&(trash||[]).length>0&&(
+            <div style={{position:"absolute",top:8,right:8,background:"rgba(255,255,255,0.3)",borderRadius:20,padding:"2px 7px",fontSize:10,color:"white",fontWeight:700}}>{(trash||[]).length}</div>
+          )}
+        </div>
+      ))}
     </div>
   );
 
+  // Reorder page
+  if(showReorder&&isAdmin) {
+    return <ReorderSettings tabs={orderedTabs} adminTabs={adminTabs} onSave={(newOrder)=>{onSaveSettingOrder(newOrder);setShowReorder(false);}} onBack={()=>setShowReorder(false)} TAB_COLORS={TAB_COLORS}/>;
+  }
+
   return(
     <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
-      <NavBar title="⚙️ Settings" onBack={onBack}/>
+      <div style={{background:"#0f1f4b",padding:"0 24px",height:64,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,.2)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={onBack} style={{background:"rgba(255,255,255,0.12)",border:"none",fontSize:18,cursor:"pointer",color:"white",padding:"6px 12px",borderRadius:8}}>←</button>
+          <span style={{fontWeight:700,fontSize:18,color:"white"}}>⚙️ Settings</span>
+        </div>
+        {isAdmin&&(
+          <button onClick={()=>setShowReorder(true)} title="Reorder settings" style={{background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",cursor:"pointer",color:"white",fontSize:14,fontFamily:"system-ui,sans-serif",display:"flex",alignItems:"center",gap:6}}>
+            ✏️ <span style={{fontSize:12,fontWeight:600}}>Reorder</span>
+          </button>
+        )}
+      </div>
       <div style={{padding:"24px",maxWidth:960,margin:"0 auto"}}>
-        {/* Main grid - all users */}
-        {isAdmin&&<div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"right"}}>⠿ Drag boxes to reorder</div>}
-        {renderGrid(orderedTabs, true)}
-
-        {/* Admin only section */}
+        {renderGrid(orderedTabs)}
         {isAdmin&&(
           <div style={{marginTop:28}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
@@ -3368,7 +3422,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
               </div>
               <div style={{height:1,flex:1,background:"#e2e8f0"}}/>
             </div>
-            {renderGrid(adminTabs, false)}
+            {renderGrid(adminTabs)}
           </div>
         )}
       </div>
