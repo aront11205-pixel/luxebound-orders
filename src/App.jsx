@@ -3235,9 +3235,9 @@ function ReorderSettings({ tabs, adminTabs, onSave, onBack, TAB_COLORS }) {
   const moveDown = i => { if(i===list.length-1) return; const u=[...list]; [u[i],u[i+1]]=[u[i+1],u[i]]; setList(u); };
 
   const handleSave = () => {
-    // Save only the non-admin tabs order (admin tabs always stay at bottom)
-    const regularIds = list.filter(t=>!adminTabs.find(a=>a.id===t.id)).map(t=>t.id);
-    onSave(regularIds);
+    // Save the full order of all tabs
+    const allIds = list.map(t=>t.id);
+    onSave(allIds);
   };
 
   return(
@@ -3350,7 +3350,13 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
   }
   // V8: Admin can reorder settings boxes
   const [showReorder,setShowReorder]=useState(false);
-  const orderedTabs=settingOrder&&settingOrder.length>0?[...tabs].sort((a,b)=>{const oi=settingOrder.indexOf(a.id);const bi=settingOrder.indexOf(b.id);return(oi===-1?999:oi)-(bi===-1?999:bi)}):tabs;
+  const orderedTabs=settingOrder&&settingOrder.length>0
+    ?[...tabs].sort((a,b)=>{
+        const oi=settingOrder.indexOf(a.id);
+        const bi=settingOrder.indexOf(b.id);
+        return(oi===-1?999:oi)-(bi===-1?999:bi);
+      })
+    :tabs;
 
   const TAB_COLORS = {
     pipeline:  "linear-gradient(135deg,#667eea,#764ba2)",
