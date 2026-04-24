@@ -1314,7 +1314,6 @@ function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilte
   const [filters,setFilters]=useState({search:"",album:"",paid:"",vip:false,priority:false,pinned:false});
   const [quickNoteOrder,setQuickNoteOrder]=useState(null);
   const [showCalc,setShowCalc]=useState(false);
-  const [showThankYou,setShowThankYou]=useState(null);
   const [viewCustomer,setViewCustomer]=useState(null);
   // V6: Daily digest + weekly summary
   const [showDigest,setShowDigest]=useState(()=>{
@@ -1383,7 +1382,7 @@ function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilte
         </div>
       </div>
 
-      <div style={{padding:"28px 32px",maxWidth:1200,margin:"0 auto"}}>
+      <div style={{padding:"28px 32px",maxWidth:1440,margin:"0 auto"}}>
         {showDigest&&<DailyDigest orders={orders} onDismiss={dismissDigest} displayName={currentUser?.displayName||currentUser?.email?.split("@")[0]||"User"}/>}
         {showWeekly&&<WeeklySummary orders={orders} onDismiss={dismissWeekly}/>}
         <StatCards orders={orders} onFilterUnpaid={filterUnpaid}/>
@@ -1444,7 +1443,6 @@ function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilte
       {quickNoteOrder&&<QuickNoteModal order={quickNoteOrder} onSave={onEditNote} onClose={()=>setQuickNoteOrder(null)} th={th}/>}
       {showCalc&&<PriceCalculator albums={albums} upgrades={upgrades} onClose={()=>setShowCalc(false)}/>}
       {viewCustomer&&<CustomerProfile customer={viewCustomer} orders={orders} onClose={()=>setViewCustomer(null)} onEdit={c=>{onSaveCustomer([c,...(customers||[]).filter(x=>x.id!==c.id)]);setViewCustomer(c);}} th={th}/>}
-      {showThankYou&&<ThankYouPopup order={showThankYou} lang={lang} onClose={()=>setShowThankYou(null)}/>}
     </div>
   );
 }
@@ -1722,7 +1720,7 @@ function OrderForm({ order, albums, upgrades, paymentMethods, onSave, onCancel, 
   return(
     <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
       <NavBar title={isEdit?"✏️ Edit Order":"📝 New Order"} onBack={onCancel}/>
-      <div style={{padding:"24px 28px",maxWidth:700,margin:"0 auto"}}>
+      <div style={{padding:"24px 28px",maxWidth:820,margin:"0 auto"}}>
 
         {/* Customer */}
         <div style={sec}>
@@ -2128,63 +2126,33 @@ function UsersTab({users,onSave,th}){
   );
 }
 
-// Business Insights Tab (V6: adds best upgrade, profit by album, customer ranking, year vs year, goal tracker)
+// Business Insights Tab (V8.4: Grid redesign)
 function InsightsTab({ orders, customers, th }) {
   const total=orders.length;
+  const [activeSection,setActiveSection]=useState("overview");
   const [chartYear,setChartYear]=useState(new Date().getFullYear());
   const [monthlyGoal,setMonthlyGoal]=useState(()=>Number(localStorage.getItem("lb_monthly_goal")||0));
   const [yearlyGoal,setYearlyGoal]=useState(()=>Number(localStorage.getItem("lb_yearly_goal")||0));
   const [editGoal,setEditGoal]=useState(false);
   const [tmpMonthly,setTmpMonthly]=useState("");
   const [tmpYearly,setTmpYearly]=useState("");
+  const [discStart,setDiscStart]=useState("");
+  const [rptMonth,setRptMonth]=useState(new Date().toISOString().slice(0,7));
 
   if(!total) return <div style={{color:th.subtext,fontSize:14,textAlign:"center",padding:"40px 0"}}>No orders yet to analyze.</div>;
 
+  // Core calculations
   const revenue=orders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
-  const avgVal=revenue/total;
+  const znoTotal=orders.reduce((s,o)=>s+(Number(o.znoCost)||0),0);
+  const profit=revenue-znoTotal;
+  const avgVal=total>0?revenue/total:0;
   const paidCount=orders.filter(o=>o.paid).length;
   const done=orders.filter(o=>o.status==="Order Done");
   const returnCust=orders.reduce((acc,o)=>{const n=(o.customerName||"").toLowerCase();acc[n]=(acc[n]||0)+1;return acc;},{});
   const returning=Object.values(returnCust).filter(c=>c>1).length;
   const totalCust=Object.keys(returnCust).length;
   const returnRate=totalCust>0?Math.round((returning/totalCust)*100):0;
-  const outstanding=orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
-    const ft=Number(o.finalTotal)||0;const rec=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);return s+(ft-rec);
-  },0);
-
-  // Best selling upgrade (#21)
-  const byUpgrade=orders.reduce((acc,o)=>{
-    Object.entries(o.selectedUpgrades||{}).filter(([,q])=>Number(q)>0).forEach(([id])=>{
-      const name=(o.upgradeNames||{})[id]||id;
-      acc[name]=(acc[name]||0)+1;
-    });
-    return acc;
-  },{});
-  const topUpgrades=Object.entries(byUpgrade).sort((a,b)=>b[1]-a[1]).slice(0,5);
-
-  // Profit margin by album type (#22)
-  const byAlbumData=orders.reduce((acc,o)=>{
-    (o.selectedAlbums||[{albumType:o.albumType,albumPrice:o.albumPrice}]).filter(a=>a.albumType).forEach(a=>{
-      if(!acc[a.albumType])acc[a.albumType]={revenue:0,zno:0,count:0};
-      acc[a.albumType].revenue+=Number(a.albumPrice)||0;
-      acc[a.albumType].zno+=Number(o.znoCost)||0;
-      acc[a.albumType].count++;
-    });
-    return acc;
-  },{});
-
-  // Orders per customer ranking (#23)
-  const custRanking=Object.entries(
-    orders.reduce((acc,o)=>{
-      const n=o.customerName||"Unknown";
-      if(!acc[n])acc[n]={count:0,revenue:0};
-      acc[n].count++;
-      acc[n].revenue+=Number(o.finalTotal)||Number(o.total)||0;
-      return acc;
-    },{})
-  ).sort((a,b)=>b[1].count-a[1].count).slice(0,5);
-
-  // Year vs year (#25)
+  const outstanding=orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{const ft=Number(o.finalTotal)||0;const rec=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);return s+(ft-rec);},0);
   const thisYear=new Date().getFullYear();
   const lastYear=thisYear-1;
   const thisYearOrders=orders.filter(o=>(o.dateCreated||"").startsWith(String(thisYear)));
@@ -2192,357 +2160,230 @@ function InsightsTab({ orders, customers, th }) {
   const thisYearRev=thisYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
   const lastYearRev=lastYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
   const revChange=lastYearRev>0?Math.round(((thisYearRev-lastYearRev)/lastYearRev)*100):0;
-
-  // Monthly revenue chart
-  const years=[...new Set(orders.map(o=>(o.dateCreated||"").slice(0,4)).filter(Boolean))].sort().reverse();
-  const monthlyData=Array.from({length:12},(_,i)=>{
-    const mo=String(i+1).padStart(2,"0");
-    const mo_orders=orders.filter(o=>(o.dateCreated||"").startsWith(`${chartYear}-${mo}`)&&!o.refunded);
-    return{month:new Date(chartYear,i,1).toLocaleDateString("en-US",{month:"short"}),revenue:mo_orders.reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0),count:mo_orders.length};
-  });
-  const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
-
-  // Heatmap
-  const heatData=Array.from({length:12},(_,i)=>{
-    const mo=String(i+1).padStart(2,"0");
-    const all=orders.filter(o=>(o.dateCreated||"").slice(5,7)===mo);
-    return{month:new Date(2024,i,1).toLocaleDateString("en-US",{month:"short"}),count:all.length,revenue:all.reduce((s,o)=>s+(Number(o.finalTotal)||0),0)};
-  });
-  const maxCount=Math.max(...heatData.map(h=>h.count),1);
-
-  // Avg time per status
-  const statusTimes=STATUSES.slice(0,-1).map(s=>{
-    const rel=orders.filter(o=>o.status===s&&o.statusChangedAt);
-    const avg=rel.length>0?rel.reduce((sum,o)=>sum+daysSince(o.statusChangedAt),0)/rel.length:0;
-    return{status:s,avg:Math.round(avg*10)/10,count:rel.length};
-  });
-
-  // Goal tracker (#27)
   const thisMonthKey=new Date().toISOString().slice(0,7);
   const thisMonthRev=orders.filter(o=>(o.dateCreated||"").startsWith(thisMonthKey)&&!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
-  const saveGoals=()=>{
-    if(tmpMonthly) {localStorage.setItem("lb_monthly_goal",tmpMonthly);setMonthlyGoal(Number(tmpMonthly));}
-    if(tmpYearly)  {localStorage.setItem("lb_yearly_goal",tmpYearly);setYearlyGoal(Number(tmpYearly));}
-    setEditGoal(false);
-  };
+  const years=[...new Set(orders.map(o=>(o.dateCreated||"").slice(0,4)).filter(Boolean))].sort().reverse();
+  const monthlyData=Array.from({length:12},(_,i)=>{const mo=String(i+1).padStart(2,"0");const mo_orders=orders.filter(o=>(o.dateCreated||"").startsWith(`${chartYear}-${mo}`)&&!o.refunded);return{month:new Date(chartYear,i,1).toLocaleDateString("en-US",{month:"short"}),revenue:mo_orders.reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0),count:mo_orders.length};});
+  const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
+  const heatData=Array.from({length:12},(_,i)=>{const mo=String(i+1).padStart(2,"0");const all=orders.filter(o=>(o.dateCreated||"").slice(5,7)===mo);return{month:new Date(2024,i,1).toLocaleDateString("en-US",{month:"short"}),count:all.length,revenue:all.reduce((s,o)=>s+(Number(o.finalTotal)||0),0)};});
+  const maxCount=Math.max(...heatData.map(h=>h.count),1);
+  const statusTimes=STATUSES.slice(0,-1).map(s=>{const rel=orders.filter(o=>o.status===s&&o.statusChangedAt);const avg=rel.length>0?rel.reduce((sum,o)=>sum+daysSince(o.statusChangedAt),0)/rel.length:0;return{status:s,avg:Math.round(avg*10)/10,count:rel.length};});
+  const byUpgrade=orders.reduce((acc,o)=>{Object.entries(o.selectedUpgrades||{}).filter(([,q])=>Number(q)>0).forEach(([id])=>{const name=(o.upgradeNames||{})[id]||id;acc[name]=(acc[name]||0)+1;});return acc;},{});
+  const topUpgrades=Object.entries(byUpgrade).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const byAlbumData=orders.reduce((acc,o)=>{(o.selectedAlbums||[{albumType:o.albumType,albumPrice:o.albumPrice}]).filter(a=>a.albumType).forEach(a=>{if(!acc[a.albumType])acc[a.albumType]={revenue:0,zno:0,count:0};acc[a.albumType].revenue+=Number(a.albumPrice)||0;acc[a.albumType].zno+=Number(o.znoCost)||0;acc[a.albumType].count++;});return acc;},{});
+  const custRanking=Object.entries(orders.reduce((acc,o)=>{const n=o.customerName||"Unknown";if(!acc[n])acc[n]={count:0,revenue:0};acc[n].count++;acc[n].revenue+=Number(o.finalTotal)||Number(o.total)||0;return acc;},{})).sort((a,b)=>b[1].count-a[1].count).slice(0,5);
+  const sourceData=orders.reduce((acc,o)=>{const src=customers?.find(c=>c.name.toLowerCase()===(o.customerName||"").toLowerCase())?.source||"Unknown";acc[src]=(acc[src]||0)+1;return acc;},{});
+  const totalSrc=Object.values(sourceData).reduce((s,v)=>s+v,0);
+  const sizeData=orders.reduce((acc,o)=>{if(o.albumSize){acc[o.albumSize]=(acc[o.albumSize]||0)+1;}return acc;},{});
+  const coverData=orders.reduce((acc,o)=>{if(o.coverType){acc[o.coverType]=(acc[o.coverType]||0)+1;}return acc;},{});
+  const totalS=Object.values(sizeData).reduce((s,v)=>s+v,0);
+  const totalC=Object.values(coverData).reduce((s,v)=>s+v,0);
+  const discOrders=orders.filter(o=>{if(!(o.discountValue>0))return false;if(discStart&&o.dateCreated<discStart)return false;return true;});
+  const totalDisc=discOrders.reduce((s,o)=>s+Math.abs((Number(o.total)||0)-(Number(o.finalTotal)||0)),0);
 
-  const card=(icon,label,val,sub)=>(
-    <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:12}}>
+  const saveGoals=()=>{if(tmpMonthly){localStorage.setItem("lb_monthly_goal",tmpMonthly);setMonthlyGoal(Number(tmpMonthly));}if(tmpYearly){localStorage.setItem("lb_yearly_goal",tmpYearly);setYearlyGoal(Number(tmpYearly));}setEditGoal(false);};
+
+  const SECTIONS=[
+    {id:"overview",label:"📊 Overview"},
+    {id:"revenue",label:"💰 Revenue"},
+    {id:"customers",label:"👥 Customers"},
+    {id:"products",label:"📚 Products"},
+    {id:"reports",label:"📄 Reports"},
+  ];
+
+  const StatCard=({icon,label,val,sub,color=BLUE,bg})=>(
+    <div style={{background:bg||th.card,borderRadius:14,padding:"16px 18px",border:`1px solid ${th.border}`,boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
       <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
-      <div style={{fontSize:20,fontWeight:800,color:BLUE}}>{val}</div>
-      <div style={{fontSize:13,fontWeight:700,color:th.text,marginTop:2}}>{label}</div>
+      <div style={{fontSize:22,fontWeight:800,color,letterSpacing:"-0.5px"}}>{val}</div>
+      <div style={{fontSize:13,fontWeight:600,color:th.text,marginTop:3}}>{label}</div>
       {sub&&<div style={{fontSize:11,color:th.subtext,marginTop:3}}>{sub}</div>}
+    </div>
+  );
+
+  const BarChart=({data,maxVal,color})=>(
+    <div style={{display:"flex",alignItems:"flex-end",gap:6,height:100}}>
+      {data.map((m,i)=>(
+        <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+          <div style={{fontSize:8,color,fontWeight:700}}>{m.revenue>0?`$${Math.round(m.revenue/100)/10}k`:""}</div>
+          <div title={`${m.month}: ${fmt$(m.revenue)} · ${m.count} orders`} style={{width:"100%",background:m.revenue>0?color:"#f1f5f9",borderRadius:"3px 3px 0 0",height:`${Math.max((m.revenue/maxVal)*85,m.revenue>0?5:2)}px`,transition:"height .3s"}}/>
+          <div style={{fontSize:8,color:"#94a3b8",fontWeight:600}}>{m.month}</div>
+        </div>
+      ))}
     </div>
   );
 
   const ProgressBar=({current,goal,color})=>{
     const pct=goal>0?Math.min(100,Math.round((current/goal)*100)):0;
-    return(
-      <div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
-          <span style={{color:th.subtext}}>{fmt$(current)} of {fmt$(goal)}</span>
-          <span style={{fontWeight:700,color}}>{pct}%</span>
-        </div>
-        <div style={{height:8,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
-          <div style={{height:8,width:`${pct}%`,background:color,borderRadius:4,transition:"width .4s"}}/>
-        </div>
-      </div>
-    );
+    return(<div><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{color:th.subtext}}>{fmt$(current)} of {fmt$(goal)}</span><span style={{fontWeight:700,color}}>{pct}%</span></div><div style={{height:8,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:8,width:`${pct}%`,background:color,borderRadius:4,transition:"width .4s"}}/></div></div>);
   };
 
   return(
     <div>
-      {/* Summary cards */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-        {card("📦","Total Orders",total,`${paidCount} paid · ${total-paidCount} unpaid`)}
-        {card("💰","Avg Order Value",fmt$(avgVal),`Total revenue: ${fmt$(revenue)}`)}
-        {card("🔁","Return Rate",`${returnRate}%`,`${returning} of ${totalCust} customers returned`)}
-        {card("✅","Completed",done.length,`${total>0?Math.round((done.length/total)*100):0}% completion rate`)}
-        {card("💸","Outstanding",fmt$(outstanding),`${orders.filter(o=>!o.paid&&o.status!=="Order Done").length} unpaid orders`)}
-        {card("📅","This Year vs Last",`${revChange>=0?"+":""}${revChange}%`,`${fmt$(thisYearRev)} vs ${fmt$(lastYearRev)}`)}
-      </div>
-
-      {/* Goal Tracker (#27) */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div style={{fontWeight:700,fontSize:14,color:th.text}}>🎯 Revenue Goals</div>
-          <button onClick={()=>{setTmpMonthly(monthlyGoal||"");setTmpYearly(yearlyGoal||"");setEditGoal(e=>!e);}} style={{padding:"5px 12px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>{editGoal?"Cancel":"Set Goals"}</button>
-        </div>
-        {editGoal?(
-          <div style={{display:"flex",gap:10,marginBottom:14}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,color:th.subtext,marginBottom:4,fontWeight:600,textTransform:"uppercase"}}>Monthly Goal $</div>
-              <input type="number" value={tmpMonthly} onChange={e=>setTmpMonthly(e.target.value)} placeholder="e.g. 5000" style={{...{width:"100%",padding:"9px 12px",borderRadius:8,border:`1.5px solid #e2e8f0`,background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}}/>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,color:th.subtext,marginBottom:4,fontWeight:600,textTransform:"uppercase"}}>Yearly Goal $</div>
-              <input type="number" value={tmpYearly} onChange={e=>setTmpYearly(e.target.value)} placeholder="e.g. 60000" style={{...{width:"100%",padding:"9px 12px",borderRadius:8,border:`1.5px solid #e2e8f0`,background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}}/>
-            </div>
-            <div style={{display:"flex",alignItems:"flex-end"}}>
-              <button onClick={saveGoals} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Save</button>
-            </div>
-          </div>
-        ):null}
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:6}}>📅 This Month</div>
-            {monthlyGoal>0?<ProgressBar current={thisMonthRev} goal={monthlyGoal} color={BLUE}/>:<div style={{fontSize:12,color:th.subtext}}>No monthly goal set. Tap "Set Goals" to add one.</div>}
-          </div>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:6}}>📆 This Year</div>
-            {yearlyGoal>0?<ProgressBar current={thisYearRev} goal={yearlyGoal} color={GREEN}/>:<div style={{fontSize:12,color:th.subtext}}>No yearly goal set. Tap "Set Goals" to add one.</div>}
-          </div>
-        </div>
-      </div>
-
-      {/* Year vs Year (#25) */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📅 Year vs Year</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-          {[
-            {label:"Revenue",this:fmt$(thisYearRev),last:fmt$(lastYearRev),pct:revChange},
-            {label:"Orders",this:thisYearOrders.length,last:lastYearOrders.length,pct:lastYearOrders.length>0?Math.round(((thisYearOrders.length-lastYearOrders.length)/lastYearOrders.length)*100):0},
-            {label:"Profit",this:fmt$(thisYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0)-(Number(o.znoCost)||0),0)),last:fmt$(lastYearOrders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0)-(Number(o.znoCost)||0),0)),pct:0},
-          ].map(item=>(
-            <div key={item.label} style={{background:"#f8fafc",borderRadius:10,padding:12,textAlign:"center"}}>
-              <div style={{fontSize:11,color:th.subtext,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>{item.label}</div>
-              <div style={{fontSize:16,fontWeight:800,color:BLUE}}>{item.this}</div>
-              <div style={{fontSize:11,color:th.subtext,marginTop:2}}>{thisYear}</div>
-              <div style={{fontSize:13,fontWeight:600,color:"#64748b",marginTop:4}}>{item.last}</div>
-              <div style={{fontSize:10,color:th.subtext}}>{lastYear}</div>
-              {item.pct!==0&&<div style={{fontSize:11,fontWeight:700,color:item.pct>=0?GREEN:RED,marginTop:4}}>{item.pct>=0?"+":""}{item.pct}%</div>}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Monthly Revenue Chart */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div style={{fontWeight:700,fontSize:14,color:th.text}}>📈 Monthly Revenue</div>
-          <select value={chartYear} onChange={e=>setChartYear(Number(e.target.value))} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"system-ui,sans-serif",outline:"none"}}>
-            {years.map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-        <div style={{display:"flex",alignItems:"flex-end",gap:6,height:120}}>
-          {monthlyData.map((m,i)=>(
-            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-              <div style={{fontSize:8,color:BLUE,fontWeight:700}}>{m.revenue>0?`$${Math.round(m.revenue/100)/10}k`:""}</div>
-              <div title={`${m.month}: ${fmt$(m.revenue)} · ${m.count} orders`}
-                style={{width:"100%",background:m.revenue>0?BLUE:"#f1f5f9",borderRadius:"3px 3px 0 0",height:`${Math.max((m.revenue/maxRev)*90,m.revenue>0?6:3)}px`,transition:"height .3s"}}/>
-              <div style={{fontSize:8,color:"#94a3b8",fontWeight:600}}>{m.month}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Busiest Months Heatmap */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>🗓 Busiest Months (All Time)</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
-          {heatData.map((h,i)=>{
-            const intensity=h.count/maxCount;
-            const bg=h.count===0?"#f1f5f9":`rgba(82,113,255,${0.15+intensity*0.85})`;
-            return(
-              <div key={i} title={`${h.month}: ${h.count} orders · ${fmt$(h.revenue)}`}
-                style={{background:bg,borderRadius:8,padding:"10px 6px",textAlign:"center"}}>
-                <div style={{fontSize:11,fontWeight:700,color:h.count>0?"white":"#94a3b8"}}>{h.month}</div>
-                <div style={{fontSize:14,fontWeight:800,color:h.count>0?"white":"#cbd5e1"}}>{h.count}</div>
-                {h.revenue>0&&<div style={{fontSize:9,color:"rgba(255,255,255,0.8)"}}>{fmt$(h.revenue)}</div>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Best Selling Upgrades (#21) */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>🏆 Best Selling Upgrades</div>
-        {topUpgrades.length===0?<div style={{color:th.subtext,fontSize:13}}>No upgrade data yet.</div>:topUpgrades.map(([name,count],i)=>(
-          <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<topUpgrades.length-1?"1px solid #f1f5f9":"none"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:13,fontWeight:700,color:BLUE,minWidth:20}}>#{i+1}</span>
-              <span style={{fontSize:13,color:th.text}}>{name}</span>
-            </div>
-            <span style={{fontSize:13,fontWeight:700,color:th.subtext}}>{count} orders</span>
-          </div>
+      {/* Section tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+        {SECTIONS.map(s=>(
+          <button key={s.id} onClick={()=>setActiveSection(s.id)} style={{padding:"8px 16px",borderRadius:20,border:`1.5px solid ${activeSection===s.id?BLUE:"#e2e8f0"}`,background:activeSection===s.id?BLUE:"white",color:activeSection===s.id?"white":"#475569",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif",whiteSpace:"nowrap"}}>{s.label}</button>
         ))}
       </div>
 
-      {/* Profit Margin by Album (#22) */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>💰 Profit Margin by Album</div>
-        {Object.entries(byAlbumData).map(([name,data])=>{
-          const margin=data.revenue>0?Math.round(((data.revenue-data.zno)/data.revenue)*100):0;
-          return(
-            <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}>
-              <div>
-                <div style={{fontSize:13,color:th.text,fontWeight:600}}>{name}</div>
-                <div style={{fontSize:11,color:th.subtext}}>{data.count} orders · {fmt$(data.revenue)} revenue</div>
-              </div>
-              <span style={{fontSize:15,fontWeight:800,color:margin>=50?GREEN:margin>=30?AMBER:RED}}>{margin}%</span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Top Customers (#23) */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>👑 Top Customers</div>
-        {custRanking.map(([name,data],i)=>(
-          <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<custRanking.length-1?"1px solid #f1f5f9":"none"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:13,fontWeight:700,color:BLUE,minWidth:20}}>#{i+1}</span>
-              <span style={{fontSize:13,color:th.text}}>{name}</span>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:13,fontWeight:700,color:BLUE}}>{fmt$(data.revenue)}</div>
-              <div style={{fontSize:11,color:th.subtext}}>{data.count} order{data.count!==1?"s":""}</div>
-            </div>
+      {/* OVERVIEW */}
+      {activeSection==="overview"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
+            <StatCard icon="📦" label="Total Orders" val={total} sub={`${paidCount} paid · ${total-paidCount} unpaid`}/>
+            <StatCard icon="💰" label="Revenue" val={fmt$(revenue)} sub={`Avg: ${fmt$(avgVal)} per order`} color={GREEN}/>
+            <StatCard icon="📈" label="Profit" val={fmt$(profit)} sub={`Zno costs: ${fmt$(znoTotal)}`} color={profit>=0?GREEN:RED}/>
+            <StatCard icon="💸" label="Outstanding" val={fmt$(outstanding)} sub={`${orders.filter(o=>!o.paid&&o.status!=="Order Done").length} unpaid orders`} color={RED}/>
+            <StatCard icon="✅" label="Completed" val={done.length} sub={`${total>0?Math.round((done.length/total)*100):0}% completion rate`} color={GREEN}/>
+            <StatCard icon="🔁" label="Return Rate" val={`${returnRate}%`} sub={`${returning} of ${totalCust} customers returned`}/>
           </div>
-        ))}
-      </div>
-
-      {/* Unpaid Orders Total (#24) */}
-      <div style={{background:"#fef2f2",borderRadius:12,padding:16,border:"1px solid #fecaca",marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,color:RED,marginBottom:8}}>💸 Unpaid Orders</div>
-        <div style={{fontSize:26,fontWeight:800,color:RED}}>{fmt$(outstanding)}</div>
-        <div style={{fontSize:12,color:"#64748b",marginTop:4}}>{orders.filter(o=>!o.paid&&o.status!=="Order Done").length} unpaid orders outstanding</div>
-      </div>
-
-      {/* Average Time Per Status */}
-      <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>⏱ Average Time Per Status</div>
-        {statusTimes.map((s,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<statusTimes.length-1?"1px solid #f1f5f9":"none"}}>
-            <div>
-              <div style={{fontSize:13,color:th.text,fontWeight:600}}>{s.status}</div>
-              <div style={{fontSize:11,color:th.subtext}}>{s.count} orders here now</div>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:16,fontWeight:800,color:s.avg>14?RED:s.avg>7?AMBER:BLUE}}>{s.avg}d</div>
-              <div style={{fontSize:10,color:th.subtext}}>avg days</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Referral % breakdown (Side B) */}
-      {(() => {
-        const sourceData = orders.reduce((acc,o) => {
-          const src = customers?.find(c=>c.name.toLowerCase()===(o.customerName||"").toLowerCase())?.source||"Unknown";
-          acc[src]=(acc[src]||0)+1; return acc;
-        },{});
-        const total2 = Object.values(sourceData).reduce((s,v)=>s+v,0);
-        const sorted = Object.entries(sourceData).sort((a,b)=>b[1]-a[1]);
-        if(sorted.length===0) return null;
-        return(
-          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📍 Orders by Referral Source</div>
-            {sorted.map(([src,cnt],i)=>{
-              const pct=total2>0?Math.round((cnt/total2)*100):0;
-              const colors=["#5271FF","#18B978","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#14b8a6"];
-              return(
-                <div key={src} style={{marginBottom:10}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{fontWeight:600,color:th.text}}>{src}</span><span style={{color:th.subtext}}>{cnt} orders · {pct}%</span></div>
-                  <div style={{height:8,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:8,width:`${pct}%`,background:colors[i%colors.length],borderRadius:4,transition:"width .4s"}}/></div>
+          {/* Year vs Year */}
+          <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>📅 {thisYear} vs {lastYear}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+              {[{label:"Revenue",this:fmt$(thisYearRev),last:fmt$(lastYearRev),pct:revChange},{label:"Orders",this:thisYearOrders.length,last:lastYearOrders.length,pct:lastYearOrders.length>0?Math.round(((thisYearOrders.length-lastYearOrders.length)/lastYearOrders.length)*100):0},{label:"Avg Order",this:fmt$(thisYearOrders.length>0?thisYearRev/thisYearOrders.length:0),last:fmt$(lastYearOrders.length>0?lastYearRev/lastYearOrders.length:0),pct:0}].map(item=>(
+                <div key={item.label} style={{background:"#f8fafc",borderRadius:10,padding:12,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:th.subtext,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>{item.label}</div>
+                  <div style={{fontSize:18,fontWeight:800,color:BLUE}}>{item.this}</div>
+                  <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{item.last} last year</div>
+                  {item.pct!==0&&<div style={{fontSize:11,fontWeight:700,color:item.pct>=0?GREEN:RED,marginTop:3}}>{item.pct>=0?"+":""}{item.pct}%</div>}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        );
-      })()}
-
-      {/* Album Size analytics (Side D) */}
-      {(() => {
-        const sizeData = orders.reduce((acc,o)=>{ if(o.albumSize){acc[o.albumSize]=(acc[o.albumSize]||0)+1;} return acc; },{});
-        const coverData = orders.reduce((acc,o)=>{ if(o.coverType){acc[o.coverType]=(acc[o.coverType]||0)+1;} return acc; },{});
-        const hasData = Object.keys(sizeData).length>0||Object.keys(coverData).length>0;
-        if(!hasData) return null;
-        const totalS=Object.values(sizeData).reduce((s,v)=>s+v,0);
-        const totalC=Object.values(coverData).reduce((s,v)=>s+v,0);
-        return(
-          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📐 Album Size & Cover Analytics</div>
-            {Object.keys(sizeData).length>0&&(<div style={{marginBottom:14}}><div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:8,textTransform:"uppercase"}}>Sizes</div>{Object.entries(sizeData).sort((a,b)=>b[1]-a[1]).map(([s,c])=>(<div key={s} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:600,color:th.text}}>{s}</span><span style={{color:th.subtext}}>{Math.round((c/totalS)*100)}%</span></div><div style={{height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${Math.round((c/totalS)*100)}%`,background:BLUE,borderRadius:4}}/></div></div>))}</div>)}
-            {Object.keys(coverData).length>0&&(<div><div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:8,textTransform:"uppercase"}}>Cover Types</div>{Object.entries(coverData).sort((a,b)=>b[1]-a[1]).map(([s,c])=>(<div key={s} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:600,color:th.text}}>{s}</span><span style={{color:th.subtext}}>{Math.round((c/totalC)*100)}%</span></div><div style={{height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${Math.round((c/totalC)*100)}%`,background:AMBER,borderRadius:4}}/></div></div>))}</div>)}
-          </div>
-        );
-      })()}
-
-      {/* Cash Flow View (#23) */}
-      {(() => {
-        const months = Array.from({length:6},(_,i)=>{
-          const d=new Date(); d.setMonth(d.getMonth()+i);
-          const key=d.toISOString().slice(0,7);
-          const mo=orders.filter(o=>!o.paid&&o.status!=="Order Done"&&(o.paymentDueDate||o.deadline||"").startsWith(key));
-          return{month:d.toLocaleDateString("en-US",{month:"short",year:"numeric"}),expected:mo.reduce((s,o)=>s+(Number(o.finalTotal)||0)-(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0),0),count:mo.length};
-        });
-        return(
-          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>💵 Cash Flow — Expected Payments</div>
-            {months.map((m,i)=>(
-              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<months.length-1?"1px solid #f1f5f9":"none"}}>
-                <div style={{fontSize:13,color:th.text,fontWeight:i===0?700:400}}>{m.month}{i===0?" (this month)":""}</div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:14,fontWeight:700,color:m.expected>0?GREEN:"#94a3b8"}}>{fmt$(m.expected)}</div>
-                  <div style={{fontSize:10,color:th.subtext}}>{m.count} order{m.count!==1?"s":""}</div>
-                </div>
-              </div>
-            ))}
-            <div style={{fontSize:11,color:th.subtext,marginTop:10}}>Based on payment due dates of unpaid orders.</div>
-          </div>
-        );
-      })()}
-
-      {/* Discount History (#26) */}
-      {(() => {
-        const[discStart,setDiscStart]=React.useState("");
-        const discOrders=orders.filter(o=>{
-          if(!(o.discountValue>0))return false;
-          if(discStart&&o.dateCreated<discStart)return false;
-          return true;
-        });
-        const totalDisc=discOrders.reduce((s,o)=>s+Math.abs((Number(o.total)||0)-(Number(o.finalTotal)||0)),0);
-        return(
-          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`,marginBottom:16}}>
+          {/* Goal Tracker */}
+          <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div style={{fontWeight:700,fontSize:14,color:th.text}}>🏷️ Discount History</div>
-              <input type="date" value={discStart} onChange={e=>setDiscStart(e.target.value)} placeholder="From date" style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,fontFamily:"system-ui,sans-serif",outline:"none"}}/>
+              <div style={{fontWeight:700,fontSize:14,color:th.text}}>🎯 Revenue Goals</div>
+              <button onClick={()=>{setTmpMonthly(monthlyGoal||"");setTmpYearly(yearlyGoal||"");setEditGoal(e=>!e);}} style={{padding:"5px 12px",borderRadius:8,border:`1.5px solid ${BLUE}`,background:"transparent",color:BLUE,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>{editGoal?"Cancel":"Set Goals"}</button>
             </div>
-            <div style={{background:"#fef2f2",borderRadius:10,padding:"12px 14px",marginBottom:12,display:"flex",justifyContent:"space-between"}}>
-              <div style={{fontSize:13,color:RED,fontWeight:600}}>Total Discounted</div>
-              <div style={{fontSize:16,fontWeight:800,color:RED}}>{fmt$(totalDisc)}</div>
+            {editGoal&&(<div style={{display:"flex",gap:10,marginBottom:14}}><div style={{flex:1}}><div style={{fontSize:11,color:th.subtext,marginBottom:4,fontWeight:600}}>Monthly $</div><input type="number" value={tmpMonthly} onChange={e=>setTmpMonthly(e.target.value)} placeholder="e.g. 5000" style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:13,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}/></div><div style={{flex:1}}><div style={{fontSize:11,color:th.subtext,marginBottom:4,fontWeight:600}}>Yearly $</div><input type="number" value={tmpYearly} onChange={e=>setTmpYearly(e.target.value)} placeholder="e.g. 60000" style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:13,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}/></div><div style={{display:"flex",alignItems:"flex-end"}}><button onClick={saveGoals} style={{padding:"8px 14px",borderRadius:8,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Save</button></div></div>)}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <div><div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:6}}>📅 This Month</div>{monthlyGoal>0?<ProgressBar current={thisMonthRev} goal={monthlyGoal} color={BLUE}/>:<div style={{fontSize:12,color:th.subtext}}>No goal set</div>}</div>
+              <div><div style={{fontSize:12,fontWeight:700,color:th.subtext,marginBottom:6}}>📆 This Year</div>{yearlyGoal>0?<ProgressBar current={thisYearRev} goal={yearlyGoal} color={GREEN}/>:<div style={{fontSize:12,color:th.subtext}}>No goal set</div>}</div>
             </div>
-            {discOrders.slice(0,10).map((o,i)=>(<div key={o.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"6px 0",borderBottom:"1px solid #f1f5f9"}}><span style={{color:th.text}}>{o.customerName}</span><span style={{color:RED,fontWeight:600}}>-{fmt$(Math.abs((Number(o.total)||0)-(Number(o.finalTotal)||0)))}</span></div>))}
-            {discOrders.length===0&&<div style={{fontSize:12,color:th.subtext}}>No discounts in this period.</div>}
           </div>
-        );
-      })()}
+        </div>
+      )}
 
-      {/* Monthly PDF Report (#30) */}
-      {(() => {
-        const[rptMonth,setRptMonth]=React.useState(new Date().toISOString().slice(0,7));
-        const genReport=()=>{
-          const mo=orders.filter(o=>(o.dateCreated||"").startsWith(rptMonth));
-          const rev=mo.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);
-          const zno=mo.reduce((s,o)=>s+(Number(o.znoCost)||0),0);
-          const profit=rev-zno;
-          const paid=mo.filter(o=>o.paid).length;
-          const rows=mo.map(o=>`<tr><td>${o.invoiceNum||""}</td><td>${o.customerName||""}</td><td>${o.status||""}</td><td style="color:#5271FF">${fmt$(Number(o.finalTotal)||Number(o.total)||0)}</td><td style="color:${o.paid?"#18B978":"#ef4444"}">${o.paid?"✓ Paid":"✗ Unpaid"}</td></tr>`).join("");
-          const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Monthly Report</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#0f172a}h1{color:#0f1f4b;font-size:22px}h2{color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:1px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.stat{background:#f8fafc;border-radius:10px;padding:14px;text-align:center}.stat .val{font-size:22px;font-weight:800;color:#5271FF}.stat .lbl{font-size:11px;color:#64748b;margin-top:4px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}th{background:#0f1f4b;color:white;padding:8px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #e2e8f0}@media print{body{padding:16px}}</style></head><body><h1>📊 Monthly Report — ${rptMonth}</h1><h2>LuxeBound Albums</h2><div class="stats"><div class="stat"><div class="val">${mo.length}</div><div class="lbl">Orders</div></div><div class="stat"><div class="val" style="color:#18B978">${fmt$(rev)}</div><div class="lbl">Revenue</div></div><div class="stat"><div class="val" style="color:#f59e0b">${fmt$(zno)}</div><div class="lbl">Zno Costs</div></div><div class="stat"><div class="val" style="color:${profit>=0?"#18B978":"#ef4444"}">${fmt$(profit)}</div><div class="lbl">Profit</div></div></div><table><thead><tr><th>#</th><th>Customer</th><th>Status</th><th>Total</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
-          const w=window.open("","_blank");w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
-        };
-        return(
-          <div style={{background:th.card,borderRadius:12,padding:16,border:`1px solid ${th.border}`}}>
-            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>📄 Monthly PDF Report</div>
+      {/* REVENUE */}
+      {activeSection==="revenue"&&(
+        <div>
+          <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`,marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text}}>📈 Monthly Revenue</div>
+              <select value={chartYear} onChange={e=>setChartYear(Number(e.target.value))} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"system-ui,sans-serif",outline:"none"}}>
+                {years.map(y=><option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+            <BarChart data={monthlyData} maxVal={maxRev} color={BLUE}/>
+          </div>
+          <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`,marginBottom:14}}>
+            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:14}}>🗓 Busiest Months</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+              {heatData.map((h,i)=>{const intensity=h.count/maxCount;const bg=h.count===0?"#f1f5f9":`rgba(82,113,255,${0.15+intensity*0.85})`;return(<div key={i} title={`${h.month}: ${h.count} orders · ${fmt$(h.revenue)}`} style={{background:bg,borderRadius:8,padding:"10px 4px",textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:h.count>0?"white":"#94a3b8"}}>{h.month}</div><div style={{fontSize:14,fontWeight:800,color:h.count>0?"white":"#cbd5e1"}}>{h.count}</div>{h.revenue>0&&<div style={{fontSize:9,color:"rgba(255,255,255,0.8)"}}>{fmt$(h.revenue)}</div>}</div>);})}
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+            <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>🏷️ Discount History</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontSize:12,color:th.subtext}}>From date:</span><input type="date" value={discStart} onChange={e=>setDiscStart(e.target.value)} style={{padding:"4px 8px",borderRadius:6,border:"1.5px solid #e2e8f0",fontSize:11,fontFamily:"system-ui,sans-serif",outline:"none"}}/></div>
+              <div style={{fontSize:22,fontWeight:800,color:RED,marginBottom:4}}>{fmt$(totalDisc)}</div>
+              <div style={{fontSize:11,color:th.subtext,marginBottom:10}}>{discOrders.length} orders with discounts</div>
+              {discOrders.slice(0,5).map((o,i)=>(<div key={o.id||i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:"1px solid #f1f5f9"}}><span style={{color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60%"}}>{o.customerName}</span><span style={{color:RED,fontWeight:600}}>-{fmt$(Math.abs((Number(o.total)||0)-(Number(o.finalTotal)||0)))}</span></div>))}
+            </div>
+            <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>💵 Cash Flow</div>
+              {Array.from({length:5},(_,i)=>{const d=new Date();d.setMonth(d.getMonth()+i);const key=d.toISOString().slice(0,7);const mo=orders.filter(o=>!o.paid&&o.status!=="Order Done"&&(o.paymentDueDate||o.deadline||"").startsWith(key));const exp=mo.reduce((s,o)=>s+(Number(o.finalTotal)||0)-(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0),0);return(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<4?"1px solid #f1f5f9":"none"}}><span style={{fontSize:12,color:th.text,fontWeight:i===0?700:400}}>{d.toLocaleDateString("en-US",{month:"short",year:"numeric"})}</span><span style={{fontSize:13,fontWeight:700,color:exp>0?GREEN:"#94a3b8"}}>{fmt$(exp)}</span></div>);})}
+            </div>
+          </div>
+          <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text}}>📄 Monthly PDF Report</div>
+            </div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
               <input type="month" value={rptMonth} onChange={e=>setRptMonth(e.target.value)} style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"system-ui,sans-serif",outline:"none"}}/>
-              <button onClick={genReport} style={{padding:"9px 18px",borderRadius:8,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"system-ui,sans-serif",whiteSpace:"nowrap"}}>📄 Generate</button>
+              <button onClick={()=>{const mo=orders.filter(o=>(o.dateCreated||"").startsWith(rptMonth));const rev=mo.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);const zno=mo.reduce((s,o)=>s+(Number(o.znoCost)||0),0);const profit2=rev-zno;const rows=mo.map(o=>`<tr><td>${o.invoiceNum||""}</td><td>${o.customerName||""}</td><td>${o.status||""}</td><td style="color:#5271FF">${fmt$(Number(o.finalTotal)||Number(o.total)||0)}</td><td style="color:${o.paid?"#18B978":"#ef4444"}">${o.paid?"✓":"✗"}</td></tr>`).join("");const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#0f172a}h1{color:#0f1f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.stat{background:#f8fafc;border-radius:10px;padding:14px;text-align:center}.val{font-size:22px;font-weight:800;color:#5271FF}.lbl{font-size:11px;color:#64748b;margin-top:4px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}th{background:#0f1f4b;color:white;padding:8px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #e2e8f0}</style></head><body><h1>📊 ${rptMonth} — LuxeBound Albums</h1><div class="stats"><div class="stat"><div class="val">${mo.length}</div><div class="lbl">Orders</div></div><div class="stat"><div class="val" style="color:#18B978">${fmt$(rev)}</div><div class="lbl">Revenue</div></div><div class="stat"><div class="val" style="color:#f59e0b">${fmt$(zno)}</div><div class="lbl">Zno Costs</div></div><div class="stat"><div class="val" style="color:${profit2>=0?"#18B978":"#ef4444"}">${fmt$(profit2)}</div><div class="lbl">Profit</div></div></div><table><thead><tr><th>#</th><th>Customer</th><th>Status</th><th>Total</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;const w=window.open("","_blank");w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}} style={{padding:"9px 18px",borderRadius:8,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"system-ui,sans-serif",whiteSpace:"nowrap"}}>📄 Generate</button>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
+
+      {/* CUSTOMERS */}
+      {activeSection==="customers"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
+            <StatCard icon="👥" label="Total Customers" val={totalCust} sub={`${returning} returning`}/>
+            <StatCard icon="🔁" label="Return Rate" val={`${returnRate}%`} sub="Customers with 2+ orders"/>
+            <StatCard icon="💰" label="Avg Lifetime Value" val={fmt$(totalCust>0?revenue/totalCust:0)} sub="Revenue per customer"/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+            <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>👑 Top Customers</div>
+              {custRanking.map(([name,data],i)=>(<div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<custRanking.length-1?"1px solid #f1f5f9":"none"}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,fontWeight:700,color:BLUE,minWidth:18}}>#{i+1}</span><span style={{fontSize:12,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{name}</span></div><div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:700,color:BLUE}}>{fmt$(data.revenue)}</div><div style={{fontSize:10,color:th.subtext}}>{data.count} orders</div></div></div>))}
+            </div>
+            <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>📍 By Referral Source</div>
+              {Object.entries(sourceData).sort((a,b)=>b[1]-a[1]).map(([src,cnt],i)=>{const pct=totalSrc>0?Math.round((cnt/totalSrc)*100):0;const colors=[BLUE,GREEN,AMBER,"#8b5cf6","#ef4444","#06b6d4"];return(<div key={src} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60%"}}>{src}</span><span style={{color:th.subtext,whiteSpace:"nowrap"}}>{cnt} · {pct}%</span></div><div style={{height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${pct}%`,background:colors[i%colors.length],borderRadius:4}}/></div></div>);})}
+            </div>
+          </div>
+          <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+            <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>⏱ Average Time Per Status</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {statusTimes.map((s,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"#f8fafc",borderRadius:8}}><div><div style={{fontSize:12,color:th.text,fontWeight:600}}>{s.status}</div><div style={{fontSize:10,color:th.subtext}}>{s.count} orders</div></div><div style={{fontSize:18,fontWeight:800,color:s.avg>14?RED:s.avg>7?AMBER:BLUE}}>{s.avg}d</div></div>))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRODUCTS */}
+      {activeSection==="products"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+            <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>🏆 Best Selling Upgrades</div>
+              {topUpgrades.length===0?<div style={{fontSize:12,color:th.subtext}}>No upgrade data yet.</div>:topUpgrades.map(([name,count],i)=>(<div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<topUpgrades.length-1?"1px solid #f1f5f9":"none"}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,fontWeight:700,color:BLUE}}>#{i+1}</span><span style={{fontSize:12,color:th.text}}>{name}</span></div><span style={{fontSize:12,fontWeight:600,color:th.subtext}}>{count}</span></div>))}
+            </div>
+            <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>💰 Profit by Album</div>
+              {Object.entries(byAlbumData).map(([name,data])=>{const margin=data.revenue>0?Math.round(((data.revenue-data.zno)/data.revenue)*100):0;return(<div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontSize:12,color:th.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>{name}</div><div style={{fontSize:10,color:th.subtext}}>{data.count} orders</div></div><span style={{fontSize:16,fontWeight:800,color:margin>=50?GREEN:margin>=30?AMBER:RED}}>{margin}%</span></div>);})}
+            </div>
+          </div>
+          {(Object.keys(sizeData).length>0||Object.keys(coverData).length>0)&&(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              {Object.keys(sizeData).length>0&&(<div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}><div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>📐 Album Sizes</div>{Object.entries(sizeData).sort((a,b)=>b[1]-a[1]).map(([s,c])=>(<div key={s} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:600,color:th.text}}>{s}</span><span style={{color:th.subtext}}>{Math.round((c/totalS)*100)}%</span></div><div style={{height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${Math.round((c/totalS)*100)}%`,background:BLUE,borderRadius:4}}/></div></div>))}</div>)}
+              {Object.keys(coverData).length>0&&(<div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}><div style={{fontWeight:700,fontSize:14,color:th.text,marginBottom:12}}>🎨 Cover Types</div>{Object.entries(coverData).sort((a,b)=>b[1]-a[1]).map(([s,c])=>(<div key={s} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:600,color:th.text}}>{s}</span><span style={{color:th.subtext}}>{Math.round((c/totalC)*100)}%</span></div><div style={{height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${Math.round((c/totalC)*100)}%`,background:AMBER,borderRadius:4}}/></div></div>))}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* REPORTS - unpaid + quick stats */}
+      {activeSection==="reports"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14,marginBottom:14}}>
+            <div style={{background:"#fef2f2",borderRadius:14,padding:16,border:"1px solid #fecaca"}}>
+              <div style={{fontWeight:700,fontSize:14,color:RED,marginBottom:8}}>💸 Unpaid Orders</div>
+              <div style={{fontSize:26,fontWeight:800,color:RED}}>{fmt$(outstanding)}</div>
+              <div style={{fontSize:12,color:"#64748b",marginTop:4}}>{orders.filter(o=>!o.paid&&o.status!=="Order Done").length} unpaid orders</div>
+            </div>
+            <div style={{background:"#f0fdf4",borderRadius:14,padding:16,border:"1px solid #bbf7d0"}}>
+              <div style={{fontWeight:700,fontSize:14,color:GREEN,marginBottom:8}}>✅ Completion Rate</div>
+              <div style={{fontSize:26,fontWeight:800,color:GREEN}}>{total>0?Math.round((done.length/total)*100):0}%</div>
+              <div style={{fontSize:12,color:"#64748b",marginTop:4}}>{done.length} of {total} orders completed</div>
+            </div>
+          </div>
+          <div style={{background:th.card,borderRadius:14,padding:16,border:`1px solid ${th.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:14,color:th.text}}>📄 Monthly PDF Report</div>
+            </div>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <input type="month" value={rptMonth} onChange={e=>setRptMonth(e.target.value)} style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13,fontFamily:"system-ui,sans-serif",outline:"none"}}/>
+              <button onClick={()=>{const mo=orders.filter(o=>(o.dateCreated||"").startsWith(rptMonth));const rev=mo.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||0),0);const zno2=mo.reduce((s,o)=>s+(Number(o.znoCost)||0),0);const profit3=rev-zno2;const rows=mo.map(o=>`<tr><td>${o.invoiceNum||""}</td><td>${o.customerName||""}</td><td>${o.status||""}</td><td style="color:#5271FF">${fmt$(Number(o.finalTotal)||Number(o.total)||0)}</td><td style="color:${o.paid?"#18B978":"#ef4444"}">${o.paid?"✓":"✗"}</td></tr>`).join("");const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#0f172a}h1{color:#0f1f4b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.stat{background:#f8fafc;border-radius:10px;padding:14px;text-align:center}.val{font-size:22px;font-weight:800;color:#5271FF}.lbl{font-size:11px;color:#64748b;margin-top:4px}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}th{background:#0f1f4b;color:white;padding:8px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #e2e8f0}</style></head><body><h1>📊 ${rptMonth} — LuxeBound Albums</h1><div class="stats"><div class="stat"><div class="val">${mo.length}</div><div class="lbl">Orders</div></div><div class="stat"><div class="val" style="color:#18B978">${fmt$(rev)}</div><div class="lbl">Revenue</div></div><div class="stat"><div class="val" style="color:#f59e0b">${fmt$(zno2)}</div><div class="lbl">Zno</div></div><div class="stat"><div class="val" style="color:${profit3>=0?"#18B978":"#ef4444"}">${fmt$(profit3)}</div><div class="lbl">Profit</div></div></div><table><thead><tr><th>#</th><th>Customer</th><th>Status</th><th>Total</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;const w=window.open("","_blank");w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}} style={{padding:"9px 18px",borderRadius:8,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"system-ui,sans-serif",whiteSpace:"nowrap"}}>📄 Generate</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3360,7 +3201,7 @@ function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,da
   );
 }
 
-function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,companyNotes,onSaveCompanyNotes,expenses,onSaveExpenses,albumSizes,onSaveAlbumSizes,coverTypes,onSaveCoverTypes,th}){
+function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,paymentMethods,onSavePayments,users,onSaveUsers,darkMode,onToggleDark,lang,onToggleLang,onChangePw,onUpdateDisplayName,onUpdatePhoto,onBack,activeTab,setActiveTab,orders,customers,onSaveCustomer,sources,onSaveSources,customerTags,onSaveCustomerTags,trash,onRestoreOrder,onDeletePermanent,companyProfile,onSaveCompanyProfile,onRestoreBackup,customStatuses,onSaveCustomStatuses,companyNotes,onSaveCompanyNotes,expenses,onSaveExpenses,albumSizes,onSaveAlbumSizes,coverTypes,onSaveCoverTypes,settingOrder,onSaveSettingOrder,th}){
   const isAdmin=currentUser.role==="admin";
   const tabs=[
     {id:"pipeline",icon:"🔄",label:"Pipeline",desc:"Edit order statuses & stages"},
@@ -3411,23 +3252,21 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
     return(
       <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
         <NavBar title={`${tab?.icon} ${tab?.label}`} onBack={()=>setActiveTab(null)}/>
-        <div style={{padding:"24px 28px",maxWidth:680,margin:"0 auto"}}>{content()}</div>
+        <div style={{padding:"24px 28px",maxWidth:860,margin:"0 auto"}}>{content()}</div>
       </div>
     );
   }
   // V8: Admin can reorder settings boxes
   const [dragSettingIdx,setDragSettingIdx]=useState(null);
   const [overSettingIdx,setOverSettingIdx]=useState(null);
-  const [tabOrder,setTabOrder]=useState(()=>{
-    try{const saved=localStorage.getItem("lb_setting_order");return saved?JSON.parse(saved):null;}catch{return null;}
-  });
-  const orderedTabs=tabOrder?[...tabs].sort((a,b)=>{const oi=tabOrder.indexOf(a.id);const bi=tabOrder.indexOf(b.id);return(oi===-1?999:oi)-(bi===-1?999:bi)}):tabs;
+  const orderedTabs=settingOrder&&settingOrder.length>0?[...tabs].sort((a,b)=>{const oi=settingOrder.indexOf(a.id);const bi=settingOrder.indexOf(b.id);return(oi===-1?999:oi)-(bi===-1?999:bi)}):tabs;
   const handleSettingDragStart=(i)=>{ if(isAdmin)setDragSettingIdx(i); };
   const handleSettingDragOver=(e,i)=>{ e.preventDefault(); if(isAdmin)setOverSettingIdx(i); };
   const handleSettingDrop=(i)=>{
     if(!isAdmin||dragSettingIdx===null||dragSettingIdx===i){setDragSettingIdx(null);setOverSettingIdx(null);return;}
     const u=[...orderedTabs];const[moved]=u.splice(dragSettingIdx,1);u.splice(i,0,moved);
-    const newOrder=u.map(t=>t.id);setTabOrder(newOrder);localStorage.setItem("lb_setting_order",JSON.stringify(newOrder));
+    const newOrder=u.map(t=>t.id);
+    onSaveSettingOrder(newOrder);
     setDragSettingIdx(null);setOverSettingIdx(null);
   };
 
@@ -3484,7 +3323,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
   return(
     <div style={{background:"linear-gradient(160deg,#e8eeff 0%,#f0f7ff 100%)",minHeight:"100vh",fontFamily:"system-ui,sans-serif"}}>
       <NavBar title="⚙️ Settings" onBack={onBack}/>
-      <div style={{padding:"24px",maxWidth:800,margin:"0 auto"}}>
+      <div style={{padding:"24px",maxWidth:960,margin:"0 auto"}}>
         {/* Main grid - all users */}
         {isAdmin&&<div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"right"}}>⠿ Drag to reorder</div>}
         {renderGrid(orderedTabs, true)}
@@ -3527,6 +3366,7 @@ export default function App() {
   const [companyProfile,setCompanyProfile]=useState(null);
   const [customStatuses,setCustomStatuses]=useState(null);
   const [companyNotes,setCompanyNotes]=useState([]);
+  const [settingOrder,setSettingOrder]=useState([]);
   const [expenses,setExpenses]=useState([]);
   const [albumSizes,setAlbumSizes]=useState(DEFAULT_ALBUM_SIZES);
   const [coverTypes,setCoverTypes]=useState(DEFAULT_COVER_TYPES); // null = use defaults
@@ -3597,6 +3437,7 @@ export default function App() {
     const data=clean(rawData);
     if(id){await setDoc(doc(db,"orders",id),data);}
     else {await addDoc(collection(db,"orders"),data);}
+    if(data.status==="Order Done") setShowThankYouOrder({...data,id});
     setView("dashboard");setEditingOrder(null);
   };
 
@@ -3688,6 +3529,10 @@ export default function App() {
   const saveExpenses=async(items)=>{ await setDoc(doc(db,"config","expenses"),{items}); };
   const saveAlbumSizes=async(items)=>await saveConfig("albumSizes",items);
   const saveCoverTypes=async(items)=>await saveConfig("coverTypes",items);
+  const saveSettingOrder=async(order)=>{
+    await setDoc(doc(db,"config","settingOrder"),{order});
+  };
+
   const saveCompanyNotes=async(notes)=>{
     await setDoc(doc(db,"config","companyNotes"),{items:notes});
   };
@@ -3772,6 +3617,7 @@ export default function App() {
       onRestoreBackup={restoreBackup}
       customStatuses={customStatuses} onSaveCustomStatuses={saveCustomStatuses}
       companyNotes={companyNotes} onSaveCompanyNotes={saveCompanyNotes}
+      settingOrder={settingOrder} onSaveSettingOrder={saveSettingOrder}
       expenses={expenses} onSaveExpenses={saveExpenses}
       albumSizes={albumSizes} onSaveAlbumSizes={saveAlbumSizes}
       coverTypes={coverTypes} onSaveCoverTypes={saveCoverTypes}
