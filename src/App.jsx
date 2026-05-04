@@ -311,12 +311,7 @@ function LoginScreen({ onLogin, companyLogo, companyName }) {
     try{
       await signInWithEmailAndPassword(auth,email.trim(),password);
     }catch(err){
-      const msg=err.code==="auth/invalid-credential"||err.code==="auth/wrong-password"||err.code==="auth/user-not-found"
-        ?"Incorrect email or password. Please try again."
-        :err.code==="auth/too-many-requests"
-        ?"Too many attempts. Please try again later or reset your password."
-        :"Login failed. Please try again.";
-      setErr(msg);
+      setErr("Error: " + (err.code||err.message||"Unknown error"));
     }
     setLoading(false);
   };
