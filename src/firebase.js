@@ -3,7 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBDFGy_CqybHAwZrrPX0HXRkLBEZB5zQms",
+  apiKey: "AIzaSyBDFGy_CqybHAwZrrPX0HXRkLBEZB5zDmw",
   authDomain: "luxebound-orders.firebaseapp.com",
   projectId: "luxebound-orders",
   storageBucket: "luxebound-orders.firebasestorage.app",
