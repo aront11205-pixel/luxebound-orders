@@ -3382,6 +3382,7 @@ export default function App() {
 
   useEffect(()=>{
     if(!currentUser) return;
+    setReady(true); // Show app immediately after auth
     const unsubs=[];
     unsubs.push(onSnapshot(collection(db,"orders"),snap=>setOrders(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("orders:",e)));
     unsubs.push(onSnapshot(collection(db,"customers"),snap=>setCustomers(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("customers:",e)));
