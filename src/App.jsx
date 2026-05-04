@@ -77,7 +77,7 @@ const YI = {
   "Notes":"אָנמערקונגען","Flag This Order":"פֿאַנאַנדערווייַזן דעם באַשטעלונג",
   "Payment History":"צאָלונג היסטאָריע","Attachments":"צוגעלייגטע פֿילן","Refund":"צוריקגאַב",
   // Statuses
-  "New Order":"נייע באַשטעלונג","Sent for First Look":"געשיקט פֿאַר ערשטן קוק",
+  "Sent for First Look":"געשיקט פֿאַר ערשטן קוק",
   "Waiting for Changes":"ווארטן אויף ענדערונגען","Waiting for Pictures":"ווארטן אויף בילדער",
   "Waiting for Approval":"ווארטן אויף גענעמיקונג","Waiting to be Ordered":"ווארטן צו באַשטעלן",
   "Ordered":"באַשטעלט","In Production":"אין פּראָדוקציע","Shipped":"אַוועקגעשיקט",
@@ -2416,6 +2416,7 @@ export default function App() {
   },[]);
 
   useEffect(()=>{
+    if(!currentUser) return; // Wait for authentication before loading data
     const unsubs=[];
     unsubs.push(onSnapshot(collection(db,"orders"),snap=>setOrders(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("orders:",e)));
     unsubs.push(onSnapshot(collection(db,"customers"),snap=>setCustomers(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("customers:",e)));
@@ -2429,28 +2430,24 @@ export default function App() {
     cfg("customerTags",setCustomerTags,[]);
     cfg("albumSizes",setAlbumSizes,DEFAULT_ALBUM_SIZES);
     cfg("coverTypes",setCoverTypes,DEFAULT_COVER_TYPES);
-    // Company profile
     unsubs.push(onSnapshot(doc(db,"config","companyProfile"),snap=>{
       if(snap.exists()) setCompanyProfile(snap.data());
     },e=>console.error("companyProfile:",e)));
-    // Custom pipeline statuses
     unsubs.push(onSnapshot(doc(db,"config","customStatuses"),snap=>{
       if(snap.exists()&&snap.data().items?.length>0) setCustomStatuses(snap.data().items);
       else setCustomStatuses(null);
     },e=>console.error("customStatuses:",e)));
-    // Company notes - real time sync between all users
     unsubs.push(onSnapshot(doc(db,"config","companyNotes"),snap=>{
       if(snap.exists()) setCompanyNotes(snap.data().items||[]);
       else setCompanyNotes([]);
     },e=>console.error("companyNotes:",e)));
-    // Settings box order - synced across all users
     unsubs.push(onSnapshot(doc(db,"config","settingOrder"),snap=>{
       if(snap.exists()&&snap.data().order?.length>0) setSettingOrder(snap.data().order);
       else setSettingOrder([]);
     },e=>console.error("settingOrder:",e)));
     setReady(true);
     return()=>unsubs.forEach(u=>u());
-  },[]);
+  },[currentUser]);
 
   // V6: Auto-assign invoice numbers sorted by date
   useEffect(()=>{
@@ -2626,8 +2623,8 @@ export default function App() {
   },[]);
 
   if(!authReady) return <Loader/>;
+  if(!currentUser) return <LoginScreen companyLogo={companyProfile?.logo||null} companyName={companyProfile?.name||"LuxeBound Albums"}/>;
   if(!ready) return <Loader/>;
-  if(!currentUser) return <LoginScreen users={users} onLogin={login}/>;
 
   if(view==="newOrder"||view==="editOrder") return(
     <OrderForm
