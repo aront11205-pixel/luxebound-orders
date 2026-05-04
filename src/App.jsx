@@ -705,7 +705,7 @@ function UpcomingDeadlines({ orders, onEdit }) {
 
   return(
     <div style={{background:"white",borderRadius:16,marginBottom:20,boxShadow:"0 4px 16px rgba(0,0,0,0.07)"}}>
-      <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+      <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>{ const nv=!open; setOpen(nv); try{localStorage.setItem("lb_cal_open",nv?"1":"0");}catch{} }}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:16,transition:"transform .2s",display:"inline-block",transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
           <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>📅 Upcoming Deadlines</span>
@@ -854,7 +854,7 @@ function DualCalendar() {
   const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-based
   const [jewishHolidays, setJewishHolidays] = useState({});
   const [loadingHolidays, setLoadingHolidays] = useState(false);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(()=>{ try{ const s=localStorage.getItem("lb_cal_open"); return s===null?false:s==="1"; }catch{return false;} });
   const [tooltip, setTooltip] = useState(null);
 
   const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1328,7 +1328,7 @@ function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilte
   });
   const dismissDigest=()=>{localStorage.setItem(`lb_digest_${new Date().toDateString()}`,"1");setShowDigest(false);};
   const dismissWeekly=()=>{localStorage.setItem(`lb_weekly_${new Date().toDateString()}`,"1");setShowWeekly(false);};
-  const [ordersOpen,setOrdersOpen]=useState(false);
+  const [ordersOpen,setOrdersOpen]=useState(()=>{ try{ const s=localStorage.getItem("lb_orders_open"); return s===null?true:s==="1"; }catch{return true;} });
   const [selectMode,setSelectMode]=useState(false);
   const [selected,setSelected]=useState([]);
   const [bulkStatus,setBulkStatus]=useState("");
@@ -1395,7 +1395,7 @@ function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilte
         <div style={{background:"white",borderRadius:16,boxShadow:"0 4px 16px rgba(0,0,0,0.06)"}}>
           {/* Header */}
           <div style={{padding:"16px 22px",borderBottom:ordersOpen?"1px solid #f1f5f9":"none",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:ordersOpen?"16px 16px 0 0":"16px"}}>
-            <button onClick={()=>{setOrdersOpen(o=>!o);setSelectMode(false);setSelected([]);}} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:15,color:"#0f172a",fontFamily:"system-ui,sans-serif",padding:0}}>
+            <button onClick={()=>{const nv=!ordersOpen;setOrdersOpen(nv);try{localStorage.setItem("lb_orders_open",nv?"1":"0");}catch{}setSelectMode(false);setSelected([]);}} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:8,fontWeight:700,fontSize:15,color:"#0f172a",fontFamily:"system-ui,sans-serif",padding:0}}>
               <span style={{fontSize:16,transition:"transform .2s",display:"inline-block",transform:ordersOpen?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
               All Orders <span style={{fontWeight:400,color:"#94a3b8",fontSize:13}}>({filtered.length})</span>
             </button>
@@ -3468,7 +3468,18 @@ export default function App() {
   const [showExport,setShowExport]=useState(false);
 
   useEffect(()=>{
-    const saved=lsGet("lb_user");if(saved)setCurrentUser(saved);
+    const saved=lsGet("lb_user");
+    if(saved){
+      setCurrentUser(saved);
+      // V10: Load latest photo from Firestore
+      if(saved.email){
+        onSnapshot(doc(db,"userProfiles",saved.email),snap=>{
+          if(snap.exists()&&snap.data().photo){
+            setCurrentUser(prev=>prev?{...prev,photo:snap.data().photo}:prev);
+          }
+        });
+      }
+    }
     const dm=lsGet("lb_dark");if(dm)setDarkMode(dm);
   },[]);
 
@@ -3655,7 +3666,14 @@ export default function App() {
 
   const changePw=async(email,pass)=>await saveUsers(users.map(u=>u.email===email?{...u,password:pass}:u));
   const updateDisplayName=async(email,name)=>await saveUsers(users.map(u=>u.email===email?{...u,displayName:name}:u));
-  const updatePhoto=async(email,photo)=>await saveUsers(users.map(u=>u.email===email?{...u,photo:photo||null}:u));
+  const updatePhoto=async(email,photo)=>{
+    // V10: Save to Firestore so it syncs across all devices
+    if(currentUser){
+      await setDoc(doc(db,"userProfiles",email),{photo:photo||null,updatedAt:new Date().toISOString()});
+    }
+    await saveUsers(users.map(u=>u.email===email?{...u,photo:photo||null}:u));
+    setCurrentUser(prev=>prev?{...prev,photo:photo||null}:prev);
+  };
   const login=u=>{setCurrentUser(u);lsSet("lb_user",u);};
   const signOut=()=>{setCurrentUser(null);lsSet("lb_user",null);};
   const togDark=()=>{const d=!darkMode;setDarkMode(d);lsSet("lb_dark",d);};
