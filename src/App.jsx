@@ -311,7 +311,12 @@ function LoginScreen({ onLogin, companyLogo, companyName }) {
     try{
       await signInWithEmailAndPassword(auth,email.trim(),password);
     }catch(err){
-      setErr("Error: " + (err.code||err.message||"Unknown error"));
+      const msg=err.code==="auth/invalid-credential"||err.code==="auth/wrong-password"||err.code==="auth/user-not-found"
+        ?"Incorrect email or password. Please try again."
+        :err.code==="auth/too-many-requests"
+        ?"Too many attempts. Please try again later."
+        :"Login failed: "+(err.code||err.message);
+      setErr(msg);
     }
     setLoading(false);
   };
@@ -2427,7 +2432,8 @@ export default function App() {
       if(snap.exists()&&snap.data().order?.length>0) setSettingOrder(snap.data().order);
       else setSettingOrder([]);
     },e=>console.error("settingOrder:",e)));
-    setReady(true);
+    // Set ready after short delay even if some listeners fail
+    setTimeout(()=>setReady(true), 2000);
     return()=>unsubs.forEach(u=>u());
   },[currentUser]);
 
