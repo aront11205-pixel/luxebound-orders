@@ -568,6 +568,55 @@ function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus, onEditNote, 
 // ══════════════════════════════════════════════════════════
 // V6: DAILY DIGEST BANNER
 // ══════════════════════════════════════════════════════════
+function StatCards({ orders, onFilterUnpaid }) {
+  const revenue=orders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
+  const zno=orders.reduce((s,o)=>s+(Number(o.znoCost)||0),0);
+  const profit=revenue-zno;
+  const outstanding=orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
+    const total=Number(o.finalTotal)||Number(o.total)||0;
+    const received=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);
+    return s+(total-received);
+  },0);
+  return(
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:14,marginBottom:24}}>
+      {[
+        {icon:"📦",label:"Total Orders",val:orders.length,bg:"linear-gradient(135deg,#5271FF,#7c93ff)",sh:"rgba(82,113,255,0.3)",click:null},
+        {icon:"💰",label:"Revenue",val:fmt$(revenue),bg:"linear-gradient(135deg,#0ea5e9,#38bdf8)",sh:"rgba(14,165,233,0.3)",click:null},
+        {icon:"📈",label:"Your Profit",val:fmt$(profit),bg:profit>=0?"linear-gradient(135deg,#18B978,#34d399)":"linear-gradient(135deg,#ef4444,#f87171)",sh:profit>=0?"rgba(24,185,120,0.3)":"rgba(239,68,68,0.3)",click:null},
+        {icon:"🏭",label:"Zno Costs",val:fmt$(zno),bg:"linear-gradient(135deg,#f59e0b,#fbbf24)",sh:"rgba(245,158,11,0.3)",click:null},
+        {icon:"💸",label:"Outstanding",val:fmt$(outstanding),bg:"linear-gradient(135deg,#ef4444,#f87171)",sh:"rgba(239,68,68,0.3)",click:onFilterUnpaid},
+      ].map(c=>(
+        <div key={c.label} onClick={c.click||undefined} style={{background:c.bg,borderRadius:16,padding:"18px 14px",boxShadow:`0 8px 24px ${c.sh}`,cursor:c.click?"pointer":"default"}}>
+          <div style={{fontSize:24,marginBottom:6}}>{c.icon}</div>
+          <div style={{fontSize:20,fontWeight:800,color:"white",letterSpacing:"-0.5px"}}>{c.val}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",marginTop:5,fontWeight:600}}>{c.label}</div>
+          {c.click&&<div style={{fontSize:9,color:"rgba(255,255,255,0.6)",marginTop:2}}>tap to filter</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Pipeline({ orders, statusFilter, setStatusFilter, activeStatuses }) {
+  return(
+    <div style={{marginBottom:24,background:"white",borderRadius:16,padding:"18px 20px",boxShadow:"0 4px 16px rgba(0,0,0,0.07)"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#64748b",marginBottom:12,textTransform:"uppercase",letterSpacing:"1px"}}>Pipeline</div>
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
+        {(activeStatuses||STATUSES).map(s=>{
+          const count=orders.filter(o=>o.status===s).length;
+          const active=statusFilter===s;
+          return(
+            <div key={s} onClick={()=>setStatusFilter(active?null:s)} style={{flexShrink:0,padding:"10px 14px",borderRadius:12,cursor:"pointer",background:active?BLUE:"#f1f5f9",color:active?"white":"#334155",border:`2px solid ${active?BLUE:"transparent"}`,textAlign:"center",minWidth:90,transition:"all .15s"}}>
+              <div style={{fontSize:22,fontWeight:800,color:active?"white":BLUE,lineHeight:1}}>{count}</div>
+              <div style={{fontSize:10,marginTop:4,fontWeight:600,opacity:active?1:.8,lineHeight:1.2}}>{s}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DailyDigest({ orders, onDismiss, displayName }) {
   const flagged = orders.filter(o => {
     if(isSnoozed(o)||o.status==="Order Done") return false;
