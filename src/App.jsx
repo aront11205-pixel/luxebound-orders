@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { db, auth } from "./firebase";
-import { collection, doc, onSnapshot, setDoc, addDoc, deleteDoc, getDocs } from "firebase/firestore";
-import { signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, updatePassword, updateProfile, sendPasswordResetEmail, createUserWithEmailAndPassword } from "firebase/auth";
+import { db } from "./firebase";
+import { collection, doc, onSnapshot, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
 
 const BLUE  = "#5271FF";
 const GREEN = "#18B978";
@@ -296,89 +295,200 @@ function Loader() {
 // ══════════════════════════════════════════════════════════
 // LOGIN
 // ══════════════════════════════════════════════════════════
-function LoginScreen({ companyLogo, companyName }) {
-  const [email,setEmail]=useState("");
-  const [password,setPassword]=useState("");
-  const [err,setErr]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [resetMode,setResetMode]=useState(false);
-  const [resetSent,setResetSent]=useState(false);
-
-  const handleLogin=async()=>{
-    if(!email.trim()||!password.trim()){setErr("Please enter email and password.");return;}
-    setLoading(true);setErr("");
-    try{
-      await signInWithEmailAndPassword(auth,email.trim(),password);
-    }catch(err){
-      setErr("Incorrect email or password. Please try again. ("+err.code+")");
-    }
-    setLoading(false);
-  };
-
-  const handleReset=async()=>{
-    if(!email.trim()){setErr("Please enter your email address first.");return;}
-    setLoading(true);setErr("");
-    try{
-      await sendPasswordResetEmail(auth,email.trim());
-      setResetSent(true);
-    }catch(e){setErr("Could not send reset email: "+e.code);}
-    setLoading(false);
-  };
-
+function LoginScreen({ users, onLogin, companyLogo }) {
+  const [email,setEmail]=useState(""); const [pass,setPass]=useState(""); const [err,setErr]=useState("");
+  const login=()=>{const u=users.find(u=>u.email===email&&u.password===pass);if(u)onLogin(u);else setErr("Invalid email or password.");};
+  const inp={width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:14,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"};
   return(
-    <div style={{minHeight:"100vh",background:`linear-gradient(160deg,#0f1f4b 0%,#1e3a8a 50%,#0f1f4b 100%)`,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"system-ui,sans-serif"}}>
-      <div style={{background:"rgba(255,255,255,0.97)",borderRadius:24,padding:"40px 36px",width:"100%",maxWidth:400,boxShadow:"0 24px 80px rgba(0,0,0,0.4)"}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          {companyLogo
-            ?<img src={companyLogo} alt="logo" style={{width:72,height:72,borderRadius:"50%",objectFit:"cover",marginBottom:14,border:"3px solid #e2e8f0",display:"block",margin:"0 auto 14px"}}/>
-            :<div style={{width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#0f1f4b,#1e3a8a)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Logo size={40}/></div>
-          }
-          <div style={{fontSize:26,fontWeight:800,color:"#0f172a",fontFamily:"Georgia,serif"}}>{companyName||"LuxeBound Albums"}</div>
-          <div style={{fontSize:12,color:"#94a3b8",marginTop:4,letterSpacing:"2px",textTransform:"uppercase"}}>Order Management</div>
+    <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${NAVY} 0%,#1e3a8a 50%,#1e40af 100%)`,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"system-ui,sans-serif"}}>
+      <div style={{width:"100%",maxWidth:420}}>
+        <div style={{textAlign:"center",marginBottom:36}}>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+            {companyLogo
+              ?<img src={companyLogo} alt="logo" style={{width:80,height:80,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.3)"}}/>
+              :<Logo size={80}/>
+            }
+          </div>
+          <div style={{fontSize:30,fontWeight:800,color:"white",letterSpacing:"-0.5px",fontFamily:"Georgia,serif"}}>LuxeBound Albums</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6,letterSpacing:"2px",textTransform:"uppercase"}}>Order Management</div>
         </div>
-        {resetSent?(
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:40,marginBottom:12}}>📧</div>
-            <div style={{fontWeight:700,fontSize:16,color:"#0f172a",marginBottom:8}}>Reset Email Sent!</div>
-            <div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Check your inbox at {email}</div>
-            <button onClick={()=>{setResetMode(false);setResetSent(false);}} style={{width:"100%",padding:"13px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#0f1f4b,#1e3a8a)",color:"white",cursor:"pointer",fontSize:15,fontWeight:700,fontFamily:"system-ui,sans-serif"}}>Back to Login</button>
-          </div>
-        ):(
-          <div>
-            <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.6px",display:"block",marginBottom:6}}>Email</label>
-              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" onKeyDown={e=>e.key==="Enter"&&!resetMode&&handleLogin()} style={{width:"100%",padding:"13px 16px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:15,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}/>
-            </div>
-            {!resetMode&&(
-              <div style={{marginBottom:20}}>
-                <label style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.6px",display:"block",marginBottom:6}}>Password</label>
-                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()} style={{width:"100%",padding:"13px 16px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#0f172a",fontSize:15,outline:"none",fontFamily:"system-ui,sans-serif",boxSizing:"border-box"}}/>
-              </div>
-            )}
-            {err&&<div style={{color:"#ef4444",fontSize:12,marginBottom:14,padding:"10px 14px",background:"#fef2f2",borderRadius:8,border:"1px solid #fecaca"}}>{err}</div>}
-            {!resetMode?(
-              <div>
-                <button onClick={handleLogin} disabled={loading} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:loading?"#94a3b8":"linear-gradient(135deg,#0f1f4b,#1e3a8a)",color:"white",cursor:loading?"not-allowed":"pointer",fontSize:15,fontWeight:700,fontFamily:"system-ui,sans-serif",marginBottom:14}}>
-                  {loading?"Signing in…":"Sign In"}
-                </button>
-                <button onClick={()=>{setResetMode(true);setErr("");}} style={{width:"100%",background:"none",border:"none",color:"#5271FF",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",padding:"4px 0"}}>Forgot your password?</button>
-              </div>
-            ):(
-              <div>
-                <button onClick={handleReset} disabled={loading} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:loading?"#94a3b8":"linear-gradient(135deg,#0f1f4b,#1e3a8a)",color:"white",cursor:loading?"not-allowed":"pointer",fontSize:15,fontWeight:700,fontFamily:"system-ui,sans-serif",marginBottom:14}}>
-                  {loading?"Sending…":"Send Reset Email"}
-                </button>
-                <button onClick={()=>{setResetMode(false);setErr("");}} style={{width:"100%",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"system-ui,sans-serif",padding:"4px 0"}}>Back to Login</button>
-              </div>
-            )}
-          </div>
-        )}
+        <div style={{background:"white",borderRadius:20,padding:32,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+          <Field label="Email" style={{marginBottom:16}}><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={inp} onKeyDown={e=>e.key==="Enter"&&login()}/></Field>
+          <Field label="Password" style={{marginBottom:22}}><input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Enter your password" style={inp} onKeyDown={e=>e.key==="Enter"&&login()}/></Field>
+          {err&&<div style={{color:RED,fontSize:13,marginBottom:16,padding:"10px 14px",background:"#fef2f2",borderRadius:10}}>{err}</div>}
+          <button onClick={login} style={{width:"100%",padding:"14px",borderRadius:10,border:"none",background:`linear-gradient(135deg,${BLUE},#7c93ff)`,color:"white",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"system-ui,sans-serif",boxShadow:"0 4px 15px rgba(82,113,255,0.4)"}}>Sign In</button>
+        </div>
       </div>
     </div>
   );
 }
 
+// ══════════════════════════════════════════════════════════
+// STAT CARDS
+// ══════════════════════════════════════════════════════════
+function StatCards({ orders, onFilterUnpaid }) {
+  const revenue=orders.filter(o=>!o.refunded).reduce((s,o)=>s+(Number(o.finalTotal)||Number(o.total)||0),0);
+  const zno=orders.reduce((s,o)=>s+(Number(o.znoCost)||0),0);
+  const profit=revenue-zno;
+  const outstanding=orders.filter(o=>!o.paid&&o.status!=="Order Done").reduce((s,o)=>{
+    const total=Number(o.finalTotal)||Number(o.total)||0;
+    const received=(o.payments||[]).reduce((ps,p)=>ps+Number(p.amount||0),0);
+    return s+(total-received);
+  },0);
+  return(
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:14,marginBottom:24}}>
+      {[
+        {icon:"📦",label:"Total Orders",val:orders.length,   bg:"linear-gradient(135deg,#5271FF,#7c93ff)",sh:"rgba(82,113,255,0.3)", click:null},
+        {icon:"💰",label:"Revenue",     val:fmt$(revenue),    bg:"linear-gradient(135deg,#0ea5e9,#38bdf8)",sh:"rgba(14,165,233,0.3)",click:null},
+        {icon:"📈",label:"Your Profit", val:fmt$(profit),     bg:profit>=0?"linear-gradient(135deg,#18B978,#34d399)":"linear-gradient(135deg,#ef4444,#f87171)",sh:profit>=0?"rgba(24,185,120,0.3)":"rgba(239,68,68,0.3)",click:null},
+        {icon:"🏭",label:"Zno Costs",   val:fmt$(zno),        bg:"linear-gradient(135deg,#f59e0b,#fbbf24)",sh:"rgba(245,158,11,0.3)",click:null},
+        {icon:"💸",label:"Outstanding", val:fmt$(outstanding),bg:"linear-gradient(135deg,#ef4444,#f87171)",sh:"rgba(239,68,68,0.3)",click:onFilterUnpaid},
+      ].map(c=>(
+        <div key={c.label} onClick={c.click||undefined} style={{background:c.bg,borderRadius:16,padding:"18px 14px",boxShadow:`0 8px 24px ${c.sh}`,cursor:c.click?"pointer":"default"}}>
+          <div style={{fontSize:24,marginBottom:6}}>{c.icon}</div>
+          <div style={{fontSize:20,fontWeight:800,color:"white",letterSpacing:"-0.5px"}}>{c.val}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",marginTop:5,fontWeight:600}}>{c.label}</div>
+          {c.click&&<div style={{fontSize:9,color:"rgba(255,255,255,0.6)",marginTop:2}}>tap to filter</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
 
+function Pipeline({ orders, statusFilter, setStatusFilter }) {
+  return(
+    <div style={{marginBottom:24,background:"white",borderRadius:16,padding:"18px 20px",boxShadow:"0 4px 16px rgba(0,0,0,0.07)"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#64748b",marginBottom:12,textTransform:"uppercase",letterSpacing:"1px"}}>Pipeline</div>
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
+        {STATUSES.map(s=>{
+          const count=orders.filter(o=>o.status===s).length;
+          const active=statusFilter===s;
+          return(
+            <div key={s} onClick={()=>setStatusFilter(active?null:s)} style={{flexShrink:0,padding:"10px 14px",borderRadius:12,cursor:"pointer",background:active?BLUE:"#f1f5f9",color:active?"white":"#334155",border:`2px solid ${active?BLUE:"transparent"}`,textAlign:"center",minWidth:90,transition:"all .15s"}}>
+              <div style={{fontSize:22,fontWeight:800,color:active?"white":BLUE,lineHeight:1}}>{count}</div>
+              <div style={{fontSize:10,marginTop:4,fontWeight:600,opacity:active?1:.8,lineHeight:1.2}}>{s}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// FLAGS SECTION  (always visible, under pipeline)
+// ══════════════════════════════════════════════════════════
+const FLAG_DEFS = {
+  red:    {color:"#dc2626",bg:"#fef2f2",border:"#fecaca",icon:"🔴"},
+  orange: {color:"#ea580c",bg:"#fff7ed",border:"#fed7aa",icon:"🟠"},
+  yellow: {color:"#ca8a04",bg:"#fefce8",border:"#fef08a",icon:"🟡"},
+};
+
+function getFlag(o) {
+  // Manual flag takes priority
+  if(o.manualFlag && FLAG_DEFS[o.manualFlag]) {
+    return {...FLAG_DEFS[o.manualFlag], label: o.manualFlagNote||"Manually flagged"};
+  }
+  // Auto flags
+  if(o.status==="Delivered"&&!o.paid) return {color:"#dc2626",bg:"#fef2f2",border:"#fecaca",icon:"🔴",label:"Unpaid & Delivered"};
+  if((o.status==="Ordered"||o.status==="In Production")&&daysSince(o.statusChangedAt||o.dateCreated)>14) return {color:"#ea580c",bg:"#fff7ed",border:"#fed7aa",icon:"🟠",label:"Overdue in production"};
+  return {color:"#ca8a04",bg:"#fefce8",border:"#fef08a",icon:"🟡",label:"Sitting too long"};
+}
+
+function FlagCard({ order, onEdit, onSnooze }) {
+  const [showSnooze,setShowSnooze]=useState(false);
+  const f=getFlag(order);
+  return(
+    <div style={{background:f.bg,border:`1.5px solid ${f.border}`,borderRadius:10,padding:"10px 14px",marginBottom:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+        <div>
+          <span>{f.icon} </span>
+          <strong style={{color:f.color,fontSize:13}}>{order.customerName}</strong>
+          <span style={{fontSize:12,color:"#64748b"}}> · {order.status} · {f.label}</span>
+          {isSnoozed(order)&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>🔕 Snoozed until {fmtD(order.snoozedUntil?.split("T")[0])}</div>}
+        </div>
+        {!showSnooze&&(
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setShowSnooze(true)} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${f.border}`,background:"white",color:f.color,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>🔕 Snooze</button>
+            <button onClick={()=>onEdit(order)} style={{padding:"5px 10px",borderRadius:8,border:"none",background:f.color,color:"white",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>View</button>
+          </div>
+        )}
+      </div>
+      {showSnooze&&(
+        <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"#64748b",fontFamily:"system-ui,sans-serif"}}>Snooze for:</span>
+          {[["1 Day",1],["1 Week",7],["2 Weeks",14],["1 Month",30]].map(([label,days])=>(
+            <button key={label} onClick={()=>{onSnooze(order,days);setShowSnooze(false);}} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${f.border}`,background:"white",color:f.color,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>{label}</button>
+          ))}
+          <button onClick={()=>setShowSnooze(false)} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:11,fontFamily:"system-ui,sans-serif"}}>Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FlagsSection({ orders, onEdit, onSnooze }) {
+  const flagged=orders.filter(o=>{
+    if(isSnoozed(o)||o.status==="Order Done") return false;
+    if(o.manualFlag) return true; // manually flagged always shows
+    if(o.status==="Delivered"&&!o.paid) return true;
+    if((o.status==="Ordered"||o.status==="In Production")&&daysSince(o.statusChangedAt||o.dateCreated)>14) return true;
+    if(daysSince(o.statusChangedAt||o.dateCreated)>30) return true;
+    return false;
+  });
+  return(
+    <div style={{background:"white",borderRadius:16,padding:"16px 20px",marginBottom:20,boxShadow:"0 4px 16px rgba(0,0,0,0.07)"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#64748b",marginBottom:12,textTransform:"uppercase",letterSpacing:"1px"}}>🚩 Flagged Orders</div>
+      {flagged.length===0
+        ?<div style={{color:GREEN,fontSize:14,fontWeight:600,padding:"4px 0"}}>✅ No flagged orders</div>
+        :flagged.map(o=><FlagCard key={o.id} order={o} onEdit={onEdit} onSnooze={onSnooze}/>)
+      }
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// FILTERS  (enhanced)
+// ══════════════════════════════════════════════════════════
+function Filters({ filters, setFilters, albums, th, onClear, statusFilter, setStatusFilter }) {
+  const inp=iStyle(th);
+  const has=filters.search||filters.album||filters.paid||filters.vip||filters.priority||filters.pinned||statusFilter;
+  return(
+    <div style={{marginBottom:16}}>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <input value={filters.search} onChange={e=>setFilters(f=>({...f,search:e.target.value}))} placeholder="🔍 Search name or phone…" style={{...inp,flex:1,minWidth:160,fontSize:13}}/>
+        <select value={filters.album} onChange={e=>setFilters(f=>({...f,album:e.target.value}))} style={{...inp,width:"auto",fontSize:13}}>
+          <option value="">All Albums</option>
+          {albums.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+        </select>
+        <select value={statusFilter||""} onChange={e=>setStatusFilter(e.target.value||null)} style={{...inp,width:"auto",fontSize:13}}>
+          <option value="">All Statuses</option>
+          {STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <select value={filters.paid} onChange={e=>setFilters(f=>({...f,paid:e.target.value}))} style={{...inp,width:"auto",fontSize:12,padding:"7px 10px"}}>
+          <option value="">All (Paid/Unpaid)</option>
+          <option value="paid">✅ Paid only</option>
+          <option value="unpaid">❌ Unpaid only</option>
+        </select>
+        {[["vip","⭐ VIP",BLUE],["priority","⚡ Priority",AMBER],["pinned","📌 Pinned",GOLD]].map(([key,label,color])=>(
+          <label key={key} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#475569",cursor:"pointer",fontFamily:"system-ui,sans-serif",background:"#f8fafc",padding:"7px 12px",borderRadius:8,border:`1.5px solid ${filters[key]?color+"55":"#e2e8f0"}`}}>
+            <input type="checkbox" checked={!!filters[key]} onChange={e=>setFilters(f=>({...f,[key]:e.target.checked}))} style={{accentColor:color}}/>{label}
+          </label>
+        ))}
+        {has&&<button onClick={onClear} style={{padding:"7px 14px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"system-ui,sans-serif"}}>Clear ×</button>}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// ORDER CARD  (V4)
+// ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// ORDER CARD  (V5: progress bar, color border, waiting timer, quick status, photos, payment history)
+// ══════════════════════════════════════════════════════════
 function OrderCard({ order, onEdit, onDelete, onPin, onQuickStatus, onEditNote, onViewCustomer }) {
   const finalTotal=(Number(order.finalTotal)||Number(order.total)||0);
   const received=(order.payments||[]).reduce((s,p)=>s+Number(p.amount||0),0);
@@ -744,7 +854,7 @@ function DualCalendar() {
   const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-based
   const [jewishHolidays, setJewishHolidays] = useState({});
   const [loadingHolidays, setLoadingHolidays] = useState(false);
-  const [open, setOpen] = useState(()=>{ try{ const s=localStorage.getItem("lb_cal_open"); return s===null?false:s==="1"; }catch{return false;} });
+  const [open, setOpen] = useState(true);
   const [tooltip, setTooltip] = useState(null);
 
   const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1218,7 +1328,7 @@ function Dashboard({ orders,albums,upgrades,customers,onSaveCustomer,statusFilte
   });
   const dismissDigest=()=>{localStorage.setItem(`lb_digest_${new Date().toDateString()}`,"1");setShowDigest(false);};
   const dismissWeekly=()=>{localStorage.setItem(`lb_weekly_${new Date().toDateString()}`,"1");setShowWeekly(false);};
-  const [ordersOpen,setOrdersOpen]=useState(()=>{ try{ const s=localStorage.getItem("lb_orders_open"); return s===null?true:s==="1"; }catch{return true;} });
+  const [ordersOpen,setOrdersOpen]=useState(false);
   const [selectMode,setSelectMode]=useState(false);
   const [selected,setSelected]=useState([]);
   const [bulkStatus,setBulkStatus]=useState("");
@@ -2992,7 +3102,7 @@ function KeyboardShortcutsTab({ th }) {
 }
 
 
-function AccountTab({currentUser,darkMode,onToggleDark,lang,onToggleLang,th}){
+function AccountTab({currentUser,onChangePw,onUpdateDisplayName,onUpdatePhoto,darkMode,onToggleDark,lang,onToggleLang,th}){
   const [displayName,setDisplayName]=useState(currentUser?.displayName||"");
   const [dnSaved,setDnSaved]=useState(false);
   const [cur,setCur]=useState(""); const [newPw,setNew]=useState(""); const [conf,setConf]=useState("");
@@ -3227,7 +3337,7 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
         case "company":   return <CompanyProfileTab profile={companyProfile} onSave={onSaveCompanyProfile} th={th}/>;
         case "backup":    return <BackupTab orders={orders} customers={customers} albums={albums} upgrades={upgrades} paymentMethods={paymentMethods} users={users} sources={sources} customerTags={customerTags} onRestore={onRestoreBackup} th={th}/>;
         case "shortcuts": return <KeyboardShortcutsTab th={th}/>;
-        case "account":   return <AccountTab currentUser={currentUser} darkMode={darkMode} onToggleDark={onToggleDark} lang={lang} onToggleLang={onToggleLang} th={th}/>;
+        case "account":   return <AccountTab currentUser={currentUser} onChangePw={onChangePw} onUpdateDisplayName={onUpdateDisplayName} onUpdatePhoto={onUpdatePhoto} darkMode={darkMode} onToggleDark={onToggleDark} lang={lang} onToggleLang={onToggleLang} th={th}/>;
         default: return null;
       }
     };
@@ -3332,25 +3442,6 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
 export default function App() {
   const [ready,setReady]=useState(false);
   const [currentUser,setCurrentUser]=useState(null);
-  const [authReady,setAuthReady]=useState(false);
-
-  // V9: Firebase Auth listener
-  useEffect(()=>{
-    const unsub=onAuthStateChanged(auth,async(fbUser)=>{
-      if(fbUser){
-        try{
-          const snap=await getDocs(collection(db,"users"));
-          const userList=snap.docs.map(d=>({id:d.id,...d.data()}));
-          const match=userList.find(u=>u.email?.toLowerCase()===fbUser.email?.toLowerCase());
-          setCurrentUser({uid:fbUser.uid,email:fbUser.email,displayName:fbUser.displayName||match?.name||fbUser.email?.split("@")[0]||"User",role:match?.role||"user",photo:fbUser.photoURL||null});
-        }catch{
-          setCurrentUser({uid:fbUser.uid,email:fbUser.email,displayName:fbUser.displayName||fbUser.email?.split("@")[0]||"User",role:"user",photo:null});
-        }
-      }else{setCurrentUser(null);}
-      setAuthReady(true);
-    });
-    return()=>unsub();
-  },[]);
   const [view,setView]=useState("dashboard");
   const [orders,setOrders]=useState([]);
   const [albums,setAlbums]=useState(DEFAULT_ALBUMS);
@@ -3377,12 +3468,11 @@ export default function App() {
   const [showExport,setShowExport]=useState(false);
 
   useEffect(()=>{
+    const saved=lsGet("lb_user");if(saved)setCurrentUser(saved);
     const dm=lsGet("lb_dark");if(dm)setDarkMode(dm);
   },[]);
 
   useEffect(()=>{
-    if(!currentUser) return;
-    setReady(true); // Show app immediately after auth
     const unsubs=[];
     unsubs.push(onSnapshot(collection(db,"orders"),snap=>setOrders(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("orders:",e)));
     unsubs.push(onSnapshot(collection(db,"customers"),snap=>setCustomers(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>console.error("customers:",e)));
@@ -3566,7 +3656,8 @@ export default function App() {
   const changePw=async(email,pass)=>await saveUsers(users.map(u=>u.email===email?{...u,password:pass}:u));
   const updateDisplayName=async(email,name)=>await saveUsers(users.map(u=>u.email===email?{...u,displayName:name}:u));
   const updatePhoto=async(email,photo)=>await saveUsers(users.map(u=>u.email===email?{...u,photo:photo||null}:u));
-  const signOut=async()=>{await fbSignOut(auth);setCurrentUser(null);setView("dashboard");};
+  const login=u=>{setCurrentUser(u);lsSet("lb_user",u);};
+  const signOut=()=>{setCurrentUser(null);lsSet("lb_user",null);};
   const togDark=()=>{const d=!darkMode;setDarkMode(d);lsSet("lb_dark",d);};
 
   // V6: Keyboard shortcuts
@@ -3626,6 +3717,7 @@ export default function App() {
       coverTypes={coverTypes} onSaveCoverTypes={saveCoverTypes}
       lang={lang}               onToggleLang={togLang}
       darkMode={darkMode}       onToggleDark={togDark}
+      onChangePw={changePw}     onUpdateDisplayName={updateDisplayName} onUpdatePhoto={updatePhoto}
       onBack={()=>{setView("dashboard");setSettingsTab(null);}}
       activeTab={settingsTab}   setActiveTab={setSettingsTab}
       th={theme}/>
