@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { db } from "./firebase";
-import { collection, doc, onSnapshot, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { initializeApp, getApps } from "firebase/app";
+import { getFirestore, collection, doc, onSnapshot, setDoc, addDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { getAuth, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, updatePassword, updateProfile, sendPasswordResetEmail, createUserWithEmailAndPassword } from "firebase/auth";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBDFGy_CqybHAwZrrPX0HXRkLBEZB5zQms",
+  authDomain: "luxebound-orders.firebaseapp.com",
+  projectId: "luxebound-orders",
+  storageBucket: "luxebound-orders.firebasestorage.app",
+  messagingSenderId: "891313099200",
+  appId: "1:891313099200:web:26ee2c0be0b82329a24625"
+};
+
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
 const BLUE  = "#5271FF";
 const GREEN = "#18B978";
@@ -2339,6 +2353,39 @@ function SettingsPanel({currentUser,albums,onSaveAlbums,upgrades,onSaveUpgrades,
 export default function App() {
   const [ready,setReady]=useState(false);
   const [currentUser,setCurrentUser]=useState(null);
+  const [authReady,setAuthReady]=useState(false);
+
+  // V9: Firebase Auth state listener
+  useEffect(()=>{
+    const unsub=onAuthStateChanged(auth,async(fbUser)=>{
+      if(fbUser){
+        try{
+          const snap=await getDocs(collection(db,"users"));
+          const users=snap.docs.map(d=>({id:d.id,...d.data()}));
+          const match=users.find(u=>u.email?.toLowerCase()===fbUser.email?.toLowerCase());
+          setCurrentUser({
+            uid:fbUser.uid,
+            email:fbUser.email,
+            displayName:fbUser.displayName||match?.name||fbUser.email?.split("@")[0]||"User",
+            role:match?.role||"user",
+            photo:fbUser.photoURL||match?.photo||null,
+          });
+        }catch{
+          setCurrentUser({
+            uid:fbUser.uid,
+            email:fbUser.email,
+            displayName:fbUser.displayName||fbUser.email?.split("@")[0]||"User",
+            role:"user",
+            photo:fbUser.photoURL||null,
+          });
+        }
+      }else{
+        setCurrentUser(null);
+      }
+      setAuthReady(true);
+    });
+    return()=>unsub();
+  },[]);
   const [view,setView]=useState("dashboard");
   const [orders,setOrders]=useState([]);
   const [albums,setAlbums]=useState(DEFAULT_ALBUMS);
